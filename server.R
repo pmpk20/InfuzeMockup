@@ -378,6 +378,18 @@ function(input, output, session) {
         }
       }
       
+      # Add public transport costs
+      pt_cost <- switch(input$pt_spend,
+                        "£0" = 0,
+                        "£1-£30" = 15,
+                        "£31-£60" = 45,
+                        "£61-£100" = 80,
+                        "More than £100" = 120,
+                        0
+      )
+      
+      total_cost <- total_cost + pt_cost
+      
       return(round(total_cost, 2))
     })
     
