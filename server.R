@@ -5,11 +5,16 @@ library(shiny)
 # Define the server logic
 function(input, output, session) {
   
-  # ========= Navigation Logic =========
-  # When user clicks 'Continue' on RP tab, switch to the SA tab
-  observeEvent(input$to_sa_button, {
-    updateTabsetPanel(session, "main_tabs", selected = "sa_panel")
-  })
+    # ========= Navigation Logic =========
+    # When user clicks 'Start Survey' on Welcome tab, switch to the RP tab
+    observeEvent(input$to_rp_button, {
+        updateTabsetPanel(session, "main_tabs", selected = "rp_panel")
+    })
+
+    # When user clicks 'Continue' on RP tab, switch to the SA tab
+    observeEvent(input$to_sa_button, {
+        updateTabsetPanel(session, "main_tabs", selected = "sa_panel")
+    })
   
   # When user clicks 'Lock In' on SA tab, switch to the Summary tab
   observeEvent(input$to_summary_button, {
@@ -63,12 +68,22 @@ function(input, output, session) {
       tagList(
         h4("Your Adaptation Choices (Multi-Car Household):"),
         # We use a grid-like layout with radio buttons for each car.
-        h5("Decision for your MAIN car (", input$car1_fuel, "):"),
+        h5("Decision for your most-used vehicle (", input$car1_fuel, "):"),
         radioButtons("sa_mcar_decision1", NULL,
                      choices = c("Keep, use similarly", "Keep, use less", "Replace", "Get Rid of"), inline = TRUE),
-        h5("Decision for your SECOND car (", input$car2_fuel, "):"),
+        
+        h5("Decision for your second most-used vehicle (", input$car2_fuel, "):"),
         radioButtons("sa_mcar_decision2", NULL,
                      choices = c("Keep, use similarly", "Keep, use less", "Replace", "Get Rid of"), inline = TRUE),
+
+        h5("Decision for your third most-used vehicle (", input$car3_fuel, "):"),
+        radioButtons("sa_mcar_decision3", NULL,
+                     choices = c("Keep, use similarly", "Keep, use less", "Replace", "Get Rid of"), inline = TRUE),
+        
+        h5("Decision for your fourth most-used vehicle (", input$car4_fuel, "):"),
+        radioButtons("sa_mcar_decision4", NULL,
+                     choices = c("Keep, use similarly", "Keep, use less", "Replace", "Get Rid of"), inline = TRUE),
+        
         hr(),
         selectInput("sa_mcar_total_fleet", "2. Overall, what would be the total number of OWNED cars in your household after these changes?",
                     choices = 0:input$num_cars, selected = input$num_cars),
