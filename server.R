@@ -321,7 +321,7 @@ function(input, output, session) {
         }
         
         # Vehicle 2 (similar logic)
-        if (input$num_cars %in% c("2") && !is.null(input$sa_car2_decision)) {
+        if (input$num_cars %in% c("2", "3", "4+") && !is.null(input$sa_car2_decision)) {
           if (input$sa_car2_decision == "Keep this vehicle" && !is.null(input$sa_car2_keep_mileage)) {
             total_cost <- total_cost + vehicle_monthly_cost_new(input$car2_fuel, input$sa_car2_keep_mileage)
           } else if (input$sa_car2_decision == "Replace this vehicle") {
