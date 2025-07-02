@@ -141,30 +141,56 @@ function(input, output, session) {
     req(input$num_cars)
     
     # FIX: Define the zero_car_adaptation_ui object BEFORE it is used.
-    # zero_car_adaptation_ui <- conditionalPanel(
-    #   condition = "input.num_cars == '0' || (input.num_cars == '1' && input.sa_car1_decision == 'Remove this vehicle') || (input.num_cars == '2' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle')",
-    #   hr(),
-    #   h4("Decisions about your new travel portfolio:"),
-    #   p("Since your household would not have an owned car in this scenario, what new travel options would you adopt?"),
-    #   checkboxGroupInput("sa_0_car_add_options", "Select all that apply:",
-    #                      choices = c("Sign up for 'INFUZE_TRIAL' Car Sharing", 
-    #                                  "Get a 'Leeds Travel Pass' for Public Transport",
-    #                                  "Acquire a new OWNED vehicle")),
-    #   conditionalPanel(
-    #     # The condition needs to check the checkboxGroupInput correctly with JavaScript
-    #     condition = "input.sa_0_car_add_options.indexOf('Acquire a new OWNED vehicle') > -1",
-    #     wellPanel(style = "background-color: #D5F5E3;",
-    #               h5("Details of the NEW vehicle:"),
-    #               selectInput("sa_0_car_new_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
-    #               selectInput("sa_0_car_new_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
-    #               selectInput("sa_0_car_new_mileage", "Estimated Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"))
-    #     )
-    #   )
-    # )
+    zero_car_adaptation_ui <- conditionalPanel(
+      # Simplified condition - show if they start with 0 cars OR if all their cars are removed
+      condition = "input.num_cars == '0' || (input.num_cars == '1' && input.sa_car1_decision == 'Remove this vehicle') || (input.num_cars == '2' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle') || (input.num_cars == '3' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle') || (input.num_cars == '4+' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle' && input.sa_car4_decision == 'Remove this vehicle')",
+      hr(),
+      h4("Decisions about your new travel portfolio:"),
+      p("Since your household would not have an owned car in this scenario, what new travel options would you adopt?"),
+      checkboxGroupInput("sa_0_car_add_options", "Select all that apply:",
+                         choices = c("Sign up for 'INFUZE_TRIAL' Car Sharing", 
+                                     "Get a 'Leeds Travel Pass' for Public Transport",
+                                     "Acquire a new OWNED vehicle")),
+      conditionalPanel(
+        condition = "input.sa_0_car_add_options && input.sa_0_car_add_options.indexOf('Acquire a new OWNED vehicle') > -1",
+        wellPanel(style = "background-color: #D5F5E3;",
+                  h5("Details of the NEW vehicle:"),
+                  selectInput("sa_0_car_new_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
+                  selectInput("sa_0_car_new_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
+                  selectInput("sa_0_car_new_mileage", "Estimated Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"))
+        )
+      )
+    )
+    
     
     ui_to_render <- list(intro_line, scenario_box, main_question)
     
-    
+    # Check if user starts with zero cars
+    if (input$num_cars == "0") {
+      # Show zero-car options immediately, no conditional panel needed
+      zero_car_ui <- list(
+        hr(),
+        h4("Decisions about your travel portfolio:"),
+        p("Since your household does not currently own a vehicle, what new travel options would you adopt in this scenario?"),
+        selectInput("sa_0_car_add_options", "Select all that apply:",
+                           choices = c(
+                             "No, no other changes",
+                             "Sign up for 'INFUZE_TRIAL' Car Sharing",
+                             "Get a 'Leeds Travel Pass' for Public Transport",
+                             "Acquire a new OWNED vehicle")),
+        conditionalPanel(
+          condition = "input.sa_0_car_add_options && input.sa_0_car_add_options.indexOf('Acquire a new OWNED vehicle') > -1",
+          wellPanel(style = "background-color: #D5F5E3;",
+                    h5("Details of the NEW vehicle:"),
+                    selectInput("sa_0_car_new_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
+                    selectInput("sa_0_car_new_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
+                    selectInput("sa_0_car_new_mileage", "Estimated Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"))
+          )
+        )
+      )
+      ui_to_render <- append(ui_to_render, zero_car_ui)
+    } else {
+      
     if (input$num_cars != "0") {
       ui_to_render <- append(ui_to_render, list(h4("Decisions about your OWNED vehicles:")))
       
@@ -190,8 +216,9 @@ function(input, output, session) {
     }
     
     # Now this append call will work because zero_car_adaptation_ui exists.
-    # ui_to_render <- append(ui_to_render, list(zero_car_adaptation_ui))
-    
+    ui_to_render <- append(ui_to_render, list(zero_car_ui))
+      # ui_to_render <- append(ui_to_render, list(zero_car_adaptation_ui))
+    }
 
     
     # ========= COST CALCULATIONS =========
@@ -305,6 +332,19 @@ function(input, output, session) {
         
         return((base_costs[[fuel_type]] * mileage_multiplier) + (parking_increase * 1.20))
       }
+      
+      
+      
+      # Handle zero-car households that acquire new vehicles
+      if (input$num_cars == "0") {
+        if (!is.null(input$sa_0_car_add_options) && 
+            grepl("Acquire a new OWNED vehicle", input$sa_0_car_add_options, ignore.case = TRUE)) {
+          if (!is.null(input$sa_0_car_new_fuel) && !is.null(input$sa_0_car_new_mileage)) {
+            total_cost <- total_cost + vehicle_monthly_cost_new(input$sa_0_car_new_fuel, input$sa_0_car_new_mileage)
+          }
+        }
+      }
+      
       
       # Process each vehicle based on SA decisions
       if (input$num_cars != "0") {
