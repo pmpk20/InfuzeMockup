@@ -167,17 +167,17 @@ function(input, output, session) {
     
     # Check if user starts with zero cars
     if (input$num_cars == "0") {
-      # Show zero-car options immediately, no conditional panel needed
+      # Show zero-car options immediately
       zero_car_ui <- list(
         hr(),
         h4("Decisions about your travel portfolio:"),
         p("Since your household does not currently own a vehicle, what new travel options would you adopt in this scenario?"),
         selectInput("sa_0_car_add_options", "Select all that apply:",
-                           choices = c(
-                             "No, no other changes",
-                             "Sign up for 'INFUZE_TRIAL' Car Sharing",
-                             "Get a 'Leeds Travel Pass' for Public Transport",
-                             "Acquire a new OWNED vehicle")),
+                    choices = c(
+                      "No, no other changes",
+                      "Sign up for 'INFUZE_TRIAL' Car Sharing",
+                      "Get a 'Leeds Travel Pass' for Public Transport",
+                      "Acquire a new OWNED vehicle")),
         conditionalPanel(
           condition = "input.sa_0_car_add_options && input.sa_0_car_add_options.indexOf('Acquire a new OWNED vehicle') > -1",
           wellPanel(style = "background-color: #D5F5E3;",
@@ -190,8 +190,7 @@ function(input, output, session) {
       )
       ui_to_render <- append(ui_to_render, zero_car_ui)
     } else {
-      
-    if (input$num_cars != "0") {
+      # For households with vehicles
       ui_to_render <- append(ui_to_render, list(h4("Decisions about your OWNED vehicles:")))
       
       # Vehicle 1
@@ -213,11 +212,29 @@ function(input, output, session) {
       if (input$num_cars == "4+" && !is.null(input$car4_type)) {
         ui_to_render <- append(ui_to_render, list(create_vehicle_adaptation_block(4, input$car4_type, input$car4_fuel, input$car4_mileage)))
       }
-    }
-    
-    # Now this append call will work because zero_car_adaptation_ui exists.
-    ui_to_render <- append(ui_to_render, list(zero_car_ui))
-      # ui_to_render <- append(ui_to_render, list(zero_car_adaptation_ui))
+      
+      # Add the conditional panel for when all vehicles are removed
+      zero_car_adaptation_ui <- conditionalPanel(
+        condition = "(input.num_cars == '1' && input.sa_car1_decision == 'Remove this vehicle') || (input.num_cars == '2' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle') || (input.num_cars == '3' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle') || (input.num_cars == '4+' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle' && input.sa_car4_decision == 'Remove this vehicle')",
+        hr(),
+        h4("Decisions about your new travel portfolio:"),
+        p("Since your household would not have an owned car in this scenario, what new travel options would you adopt?"),
+        checkboxGroupInput("sa_0_car_add_options", "Select all that apply:",
+                           choices = c("Sign up for 'INFUZE_TRIAL' Car Sharing", 
+                                       "Get a 'Leeds Travel Pass' for Public Transport",
+                                       "Acquire a new OWNED vehicle")),
+        conditionalPanel(
+          condition = "input.sa_0_car_add_options && input.sa_0_car_add_options.indexOf('Acquire a new OWNED vehicle') > -1",
+          wellPanel(style = "background-color: #D5F5E3;",
+                    h5("Details of the NEW vehicle:"),
+                    selectInput("sa_0_car_new_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
+                    selectInput("sa_0_car_new_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
+                    selectInput("sa_0_car_new_mileage", "Estimated Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"))
+          )
+        )
+      )
+      
+      ui_to_render <- append(ui_to_render, list(zero_car_adaptation_ui))
     }
 
     
@@ -494,10 +511,10 @@ function(input, output, session) {
       paste0(sign, "£", format(abs(change), big.mark = ",", nsmall = 2), ", ", sign, percentage, "%")
     })
     
-    
     ui_to_render <- append(ui_to_render, list(hr(), cost_box, hr(), actionButton("to_summary_button", "I have decided, see summary", class = "btn-success btn-lg")))
     
     do.call(tagList, ui_to_render)
+    
   })
   
   # ========= REVISED SUMMARY OUTPUT LOGIC =========
