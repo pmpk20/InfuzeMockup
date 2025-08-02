@@ -289,19 +289,28 @@ function(input, output, session) {
   # ========= SA VERSION LATEST =========
   output$sa_ui_placeholder <- renderUI({
     
-    # --- UI Components ---
-    intro_line <- h4("Please consider how you would react to the following hypothetical scenario:")
+    tags$style(HTML("
+  /* Make radio circles and labels larger */
+  .radio .form-check-input {
+    transform: scale(1.5);
+    margin-right: 8px;
+  }
+  .radio .form-check-label {
+    font-size: 1.1em;
+    padding: 4px 0;
+    cursor: pointer;
+  }
+
+  /* Make all .btn elements larger */
+  .btn {
+    padding: 0.75rem 1.25rem !important;
+    font-size: 1.25rem !important;
+  }
+"))
     
-    # scenario_box <- wellPanel(
-    #   style = "background-color: white; border: 2px solid black;",
-    #   h4("Scenario Details"),
-    #   tags$ul(
-    #     tags$li("Fuel prices: ", tags$u("+60p per litre")),
-    #     tags$li("Parking permit costs: ", tags$u("+20%")),
-    #     tags$li("Public Transport: A new 'Leeds Travel Pass' is available for", tags$u("£50/month")),
-    #     tags$li("Car Club: Membership to the 'INFUZE_TRIAL' costs", tags$u("£5 per hour"), " of use, with vehicles available within a 5-minute walk.")
-    #   )
-    # )
+    # --- UI Components ---
+    # intro_line <- h4("Please consider how you would react to the following hypothetical scenario:")
+  
     
     main_question <- h3("How would you adapt your household's travel options?")
     
@@ -441,18 +450,22 @@ function(input, output, session) {
       wellPanel(
         style = "background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);",
         
-        h5(paste0("Vehicle ", car_number, " Decisions"), style = "color: #495057; margin-bottom: 20px;"),
+        # h5(paste0("Vehicle ", car_number, " Decisions"), style = "color: #495057; margin-bottom: 20px;"),
         
         tags$table(
           style = "width: 100%; border-collapse: collapse; margin: 10px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
           class = "table table-bordered",
           tags$thead(
             tags$tr(
-              tags$th(style = "border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; text-align: center;", 
-                      paste0("Keep this vehicle: ", vehicle_desc)),
-              tags$th(style = "border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); color: white; text-align: center;", 
+            #   tags$th(style = "border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; text-align: center;", 
+            #           paste0("Keep this vehicle: ", vehicle_desc)),
+              tags$th(
+                style = "width:33%; border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; text-align: center;",
+                HTML(paste0("Keep this vehicle:<br>", vehicle_desc))
+              ),
+              tags$th(style = "width:33%; border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); color: white; text-align: center;", 
                       strong("Replace this vehicle with:")),
-              tags$th(style = "border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #dc3545 0%, #bd2130 100%); color: white; text-align: center;", 
+              tags$th(style = "width:33%; border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #dc3545 0%, #bd2130 100%); color: white; text-align: center;", 
                       strong("Remove this vehicle and:"))
             )
           ),
@@ -491,34 +504,110 @@ function(input, output, session) {
                                     "Add 'INFUZE_TRIAL' Car Sharing" = "add_carshare",
                                     "Add a 'Leeds Travel Pass'" = "add_pt",
                                     "Add an ADDITIONAL owned vehicle" = "add_vehicle"
-                                  ), width = "100%"))
+                                  ), width = "100%"),
+                      
+                      conditionalPanel(
+                                condition = paste0("input.", remove_options_id, " == 'add_vehicle'"),
+                                wellPanel(style = "background-color: #D5F5E3; margin-top: 15px;",
+                                          h5("Details of the ADDITIONAL vehicle:"),
+                                          div(
+                                            selectInput(paste0("sa_car", car_number, "_add_type"), 
+                                                        "Vehicle Type:", 
+                                                        choices = c("Car", 
+                                                                    "Van", 
+                                                                    "Motorbike"), 
+                                                        width = "100%"),
+                                            selectInput(paste0("sa_car", car_number, "_add_fuel"), 
+                                                        "Fuel Type:", 
+                                                        choices = c("Petrol", 
+                                                                    "Diesel", 
+                                                                    "Fully Electric", 
+                                                                    "Plug-in Hybrid"), 
+                                                        width = "100%"),
+                                            selectInput(paste0("sa_car", 
+                                                               car_number, 
+                                                               "_add_mileage"), 
+                                                        "Annual Mileage:", 
+                                                        choices = c("0-2,000", 
+                                                                    "2,001-5,000", 
+                                                                    "5,001 - 10,000", 
+                                                                    "10,001+"), 
+                                                        selected = mileage_val, width = "100%")
+                                          )
+                                          # fluidRow(
+                                          #   column(4, selectInput(paste0("sa_car", car_number, "_add_type"), "Vehicle Type:",
+                                          #                         choices = c("Car", "Van", "Motorbike"))),
+                                          #   column(4, selectInput(paste0("sa_car", car_number, "_add_fuel"), "Main Fuel Type:",
+                                          #                         choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid"))),
+                                          #   column(4, selectInput(paste0("sa_car", car_number, "_add_mileage"), "Annual Mileage:",
+                                          #                         choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+")))
+                                          # )
+                                )
+                              )
+                      )
             ),
+            # NEW (reactive):
             tags$tr(
               tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #cce7ff;",
-                      tags$input(type = "radio", name = decision_id, value = "Keep this vehicle", style = "transform: scale(1.2);")),
+                radioButtons(
+                  inputId   = decision_id,
+                  label     = NULL,
+                  choices   = c(
+                    "Keep this vehicle"    = "Keep this vehicle"
+                  ),
+                  inline    = TRUE,
+                  selected = character(0)   # <-- no default
+                )
+              ),
               tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #d4edda;",
-                      tags$input(type = "radio", name = decision_id, value = "Replace this vehicle", style = "transform: scale(1.2);")),
+                      radioButtons(
+                        inputId   = decision_id,
+                        label     = NULL,
+                        choices   = c(
+                          "Replace this vehicle" = "Replace this vehicle"
+                        ),
+                        inline    = TRUE,
+                        selected = character(0)   # <-- no default
+                      )
+              ),
               tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #f8d7da;",
-                      tags$input(type = "radio", name = decision_id, value = "Remove this vehicle", style = "transform: scale(1.2);"))
+                      radioButtons(
+                        inputId   = decision_id,
+                        label     = NULL,
+                        choices   = c(
+                          "Remove this vehicle"  = "Remove this vehicle"
+                        ),
+                        inline    = TRUE,
+                         selected = character(0)   # <-- no default
+                      )
+              )
             )
+            # tags$tr(
+            #   tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #cce7ff;",
+            #           tags$input(type = "radio", name = decision_id, value = "Keep this vehicle", style = "transform: scale(1.2);")),
+            #   tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #d4edda;",
+            #           tags$input(type = "radio", name = decision_id, value = "Replace this vehicle", style = "transform: scale(1.2);")),
+            #   tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #f8d7da;",
+            #           tags$input(type = "radio", name = decision_id, value = "Remove this vehicle", style = "transform: scale(1.2);"))
+            # )
           )
         ),
         
         # Conditional panel for additional vehicle details when "Add an ADDITIONAL owned vehicle" is selected
-        conditionalPanel(
-          condition = paste0("input.", remove_options_id, " == 'add_vehicle'"),
-          wellPanel(style = "background-color: #D5F5E3; margin-top: 15px;",
-                    h5("Details of the ADDITIONAL vehicle:"),
-                    fluidRow(
-                      column(4, selectInput(paste0("sa_car", car_number, "_add_type"), "Vehicle Type:", 
-                                            choices = c("Car", "Van", "Motorbike"))),
-                      column(4, selectInput(paste0("sa_car", car_number, "_add_fuel"), "Main Fuel Type:", 
-                                            choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid"))),
-                      column(4, selectInput(paste0("sa_car", car_number, "_add_mileage"), "Annual Mileage:", 
-                                            choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+")))
-                    )
-          )
-        )
+        # conditionalPanel(
+        #   condition = paste0("input.", remove_options_id, " == 'add_vehicle'"),
+        #   wellPanel(style = "background-color: #D5F5E3; margin-top: 15px;",
+        #             h5("Details of the ADDITIONAL vehicle:"),
+        #             fluidRow(
+        #               column(4, selectInput(paste0("sa_car", car_number, "_add_type"), "Vehicle Type:", 
+        #                                     choices = c("Car", "Van", "Motorbike"))),
+        #               column(4, selectInput(paste0("sa_car", car_number, "_add_fuel"), "Main Fuel Type:", 
+        #                                     choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid"))),
+        #               column(4, selectInput(paste0("sa_car", car_number, "_add_mileage"), "Annual Mileage:", 
+        #                                     choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+")))
+        #             )
+        #   )
+        # )
       )
     }
     # --- Assemble the UI ---
@@ -527,7 +616,9 @@ function(input, output, session) {
     # FIX: Define the zero_car_adaptation_ui object BEFORE it is used.
     zero_car_adaptation_ui <- conditionalPanel(
       # Simplified condition - show if they start with 0 cars OR if all their cars are removed
-      condition = "input.num_cars == '0' || (input.num_cars == '1' && input.sa_car1_decision == 'Remove this vehicle') || (input.num_cars == '2' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle') || (input.num_cars == '3' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle') || (input.num_cars == '4+' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle' && input.sa_car4_decision == 'Remove this vehicle')",
+      condition = "input.num_cars == '0' || (input.num_cars == '1' && input.sa_car1_decision == 'Remove this vehicle') || 
+      (input.num_cars == '2' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle') || 
+      (input.num_cars == '3' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle') || (input.num_cars == '4+' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle' && input.sa_car4_decision == 'Remove this vehicle')",
       hr(),
       h4("Decisions about your new travel portfolio:"),
       p("Since your household would not have an owned car in this scenario, what new travel options would you adopt?"),
@@ -548,7 +639,7 @@ function(input, output, session) {
     
     scenario_and_costs_table <- wellPanel(
       style = "background-color: white; border: 2px solid black;",
-      h4("Scenario Details & Your Costs"),
+      # h4("Scenario Details & Your Costs"),
       tags$table(
         style = "width: 100%; border-collapse: collapse;",
         tags$thead(
@@ -590,7 +681,7 @@ function(input, output, session) {
     # Then in your ui_to_render section, replace:
     # ui_to_render <- list(intro_line, scenario_box, main_question)
     # with:
-    ui_to_render <- list(intro_line, scenario_and_costs_table, main_question)
+    ui_to_render <- list(scenario_and_costs_table, main_question)
     
     # Check if user starts with zero cars
     if (input$num_cars == "0") {
@@ -641,8 +732,12 @@ function(input, output, session) {
       }
       
       # Add the conditional panel for when all vehicles are removed
+      ## I'm adding 'TEST' here to break the logic as I couldn't work out how to remove it lol
       zero_car_adaptation_ui <- conditionalPanel(
-        condition = "(input.num_cars == '1' && input.sa_car1_decision == 'Remove this vehicle') || (input.num_cars == '2' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle') || (input.num_cars == '3' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle') || (input.num_cars == '4+' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle' && input.sa_car4_decision == 'Remove this vehicle')",
+        condition = "(input.num_cars == '1' && input.sa_car1_decision == ' TEST Remove this vehicle' && input.remove_options_id != 'add_vehicle') || 
+        (input.num_cars == '2' && input.sa_car1_decision == 'TEST Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.remove_options_id != 'add_vehicle') || 
+        (input.num_cars == '3' && input.sa_car1_decision == 'TEST Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle' && input.remove_options_id != 'add_vehicle') || 
+        (input.num_cars == '4+' && input.sa_car1_decision == 'TESTRemove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle' && input.sa_car4_decision == 'Remove this vehicle' && input.remove_options_id != 'add_vehicle')",
         hr(),
         h4("Decisions about your new travel portfolio:"),
         p("Since your household would not have an owned car in this scenario, what new travel options would you adopt?"),
@@ -680,17 +775,6 @@ function(input, output, session) {
     
     # --- UI Components ---
     intro_line <- h4("Please consider how you would react to the following hypothetical scenario:")
-    
-    # scenario_box <- wellPanel(
-    #   style = "background-color: white; border: 2px solid black;",
-    #   h4("Scenario Details"),
-    #   tags$ul(
-    #     tags$li("Fuel prices: ", tags$u("+60p per litre")),
-    #     tags$li("Parking permit costs: ", tags$u("+20%")),
-    #     tags$li("Public Transport: A new 'Leeds Travel Pass' is available for", tags$u("£50/month")),
-    #     tags$li("Car Club: Membership to the 'INFUZE_TRIAL' costs", tags$u("£5 per hour"), " of use, with vehicles available within a 5-minute walk.")
-    #   )
-    # )
     
     main_question <- h3("How would you adapt your household's travel options?")
     
@@ -1075,17 +1159,7 @@ function(input, output, session) {
     
     # --- UI Components ---
     intro_line <- h4("Please consider how you would react to the following hypothetical scenario:")
-    
-    # scenario_box <- wellPanel(
-    #   style = "background-color: white; border: 2px solid black;",
-    #   h4("Scenario Details"),
-    #   tags$ul(
-    #     tags$li("Fuel prices: ", tags$u("+60p per litre")),
-    #     tags$li("Parking permit costs: ", tags$u("+20%")),
-    #     tags$li("Public Transport: A new 'Leeds Travel Pass' is available for", tags$u("£50/month")),
-    #     tags$li("Car Club: Membership to the 'INFUZE_TRIAL' costs", tags$u("£5 per hour"), " of use, with vehicles available within a 5-minute walk.")
-    #   )
-    # )
+  
     
     main_question <- h3("How would you adapt your household's travel options?")
     
