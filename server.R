@@ -481,6 +481,19 @@ function(input, output, session) {
                       div(style = "font-size: 16px; font-weight: bold; color: #721c24;",
                           textOutput(paste0("sa_car", car_number, "_remove_cost"), inline = TRUE)))
             ),
+            
+            tags$tr(
+              tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #e6f3ff;", 
+                      div(style = "text-align: center;",
+                          p("Second attribute level here", style = "margin: 5px 0; font-size: 12px; color: #495057;"))),
+              tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #e8f5e8;", 
+                      div(style = "text-align: center;",
+                          p("Second attribute level here", style = "margin: 5px 0; font-size: 12px; color: #495057;"))),
+              tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #fce8e8;", 
+                      div(style = "text-align: center;",
+                          p("Second attribute level here", style = "margin: 5px 0; font-size: 12px; color: #495057;")))
+            ),
+            
             tags$tr(
               tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #e6f3ff;", 
                       div(style = "text-align: center;",
