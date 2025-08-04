@@ -290,40 +290,72 @@ function(input, output, session) {
   output$sa_ui_placeholder <- renderUI({
     
     tags$style(HTML("
-  /* Make radio circles and labels larger */
-  .radio .form-check-input {
-    transform: scale(1.5);
-    margin-right: 8px;
-  }
-  .radio .form-check-label {
-    font-size: 1.1em;
-    padding: 4px 0;
-    cursor: pointer;
-  }
-
-  /* Make all .btn elements larger */
-  .btn {
-    padding: 0.75rem 1.25rem !important;
-    font-size: 1.25rem !important;
-  }
+/* Make radio circles and labels larger */
+.radio .form-check-input {
+  transform: scale(1.5);
+  margin-right: 8px;
+}
+.radio .form-check-label {
+  font-size: 1.1em;
+  padding: 4px 0;
+  cursor: pointer;
+}
+/* Make all .btn elements larger */
+.btn {
+  padding: 0.75rem 1.25rem !important;
+  font-size: 1.25rem !important;
+}
+/* Collapsible vehicle styling */
+.vehicle-header {
+  cursor: pointer;
+  background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+  color: white;
+  padding: 10px 15px;
+  margin: 10px 0 0 0;
+  border-radius: 5px;
+  user-select: none;
+}
+.vehicle-header:hover {
+  background: linear-gradient(135deg, #5a6268 0%, #343a40 100%);
+}
+.vehicle-content {
+  display: none;
+  margin-bottom: 20px;
+}
+.vehicle-content.show {
+  display: block;
+}
+/* Override any potential conflicts */
+.vehicle-content.show {
+  display: block !important;
+}
+/* Custom slider styling */
+.custom-slider {
+  width: 100%;
+  margin: 10px 0;
+}
+.slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #666;
+  margin-top: 5px;
+}
 "))
     
     # --- UI Components ---
-    # intro_line <- h4("Please consider how you would react to the following hypothetical scenario:")
-  
-    
     main_question <- h3("How would you adapt your household's travel options?")
     
     # --- Helper function to create the nested UI for ONE vehicle ---
-    # Replace the create_vehicle_adaptation_block function with this DCE version:
-    
     create_vehicle_adaptation_block <- function(car_number, vehicle_type, fuel_type, mileage_val) {
       
       decision_id <- paste0("sa_car", car_number, "_decision")
       replace_type_id <- paste0("sa_car", car_number, "_replace_type")
       replace_fuel_id <- paste0("sa_car", car_number, "_replace_fuel")
       replace_mileage_id <- paste0("sa_car", car_number, "_replace_mileage")
-      remove_options_id <- paste0("sa_car", car_number, "_remove_options")
+      remove_pt_id <- paste0("sa_car", car_number, "_remove_pt")
+      remove_carshare_id <- paste0("sa_car", car_number, "_remove_carshare")
+      usage_slider_id <- paste0("sa_car", car_number, "_usage_change")
       
       # Calculate costs for each alternative
       calculate_monthly_cost <- function(fuel, mileage) {
@@ -349,9 +381,7 @@ function(input, output, session) {
         return(round((base_costs[[fuel]] * mileage_multiplier) + (parking_increase * 1.20), 0))
       }
       
-      
-      
-      # Vehicle cost calculation function (same as in your existing code)
+      # Vehicle cost calculation function
       calculate_vehicle_cost <- function(fuel_type, mileage_bracket) {
         base_costs <- list(
           "Petrol" = 150 * 1.25,
@@ -375,284 +405,285 @@ function(input, output, session) {
         return(round((base_costs[[fuel_type]] * mileage_multiplier) + (parking_increase * 1.20), 0))
       }
       
-      # Reactive outputs for Car 1 costs
-      output$sa_car1_replace_cost <- renderText({
-        if (!is.null(input$sa_car1_replace_fuel) && !is.null(input$sa_car1_replace_mileage)) {
-          cost <- calculate_vehicle_cost(input$sa_car1_replace_fuel, input$sa_car1_replace_mileage)
+      # Reactive outputs for costs (moved outside to ensure they're created)
+      local({
+        car_num <- car_number
+        output[[paste0("sa_car", car_num, "_replace_cost")]] <- renderText({
+          replace_fuel_input <- input[[paste0("sa_car", car_num, "_replace_fuel")]]
+          replace_mileage_input <- input[[paste0("sa_car", car_num, "_replace_mileage")]]
+          
+          if (!is.null(replace_fuel_input) && !is.null(replace_mileage_input)) {
+            cost <- calculate_vehicle_cost(replace_fuel_input, replace_mileage_input)
+            paste0("£", cost, "/month")
+          } else {
+            "£[select options]"
+          }
+        })
+        
+        output[[paste0("sa_car", car_num, "_remove_cost")]] <- renderText({
+          pt_selected <- !is.null(input[[paste0("sa_car", car_num, "_remove_pt")]]) && input[[paste0("sa_car", car_num, "_remove_pt")]]
+          carshare_selected <- !is.null(input[[paste0("sa_car", car_num, "_remove_carshare")]]) && input[[paste0("sa_car", car_num, "_remove_carshare")]]
+          
+          cost <- 0
+          if (pt_selected) cost <- cost + 50  # Leeds Travel Pass
+          if (carshare_selected) cost <- cost + 25  # Average car sharing cost
+          
           paste0("£", cost, "/month")
-        } else {
-          "£[select options]"
-        }
+        })
       })
-      
-      output$sa_car1_remove_cost <- renderText({
-        if (!is.null(input$sa_car1_remove_options)) {
-          cost <- switch(input$sa_car1_remove_options,
-                         "no_changes" = 0,
-                         "add_carshare" = 25,  # Assume £25/month average usage
-                         "add_pt" = 50,        # Leeds Travel Pass
-                         "add_vehicle" = {
-                           if (!is.null(input$sa_car1_add_fuel) && !is.null(input$sa_car1_add_mileage)) {
-                             calculate_vehicle_cost(input$sa_car1_add_fuel, input$sa_car1_add_mileage)
-                           } else {
-                             0
-                           }
-                         },
-                         0)
-          paste0("£", cost, "/month")
-        } else {
-          "£0/month"
-        }
-      })
-      
-      # Reactive outputs for Car 2 costs (if you have 2+ cars)
-      output$sa_car2_replace_cost <- renderText({
-        if (!is.null(input$sa_car2_replace_fuel) && !is.null(input$sa_car2_replace_mileage)) {
-          cost <- calculate_vehicle_cost(input$sa_car2_replace_fuel, input$sa_car2_replace_mileage)
-          paste0("£", cost, "/month")
-        } else {
-          "£[select options]"
-        }
-      })
-      
-      output$sa_car2_remove_cost <- renderText({
-        if (!is.null(input$sa_car2_remove_options)) {
-          cost <- switch(input$sa_car2_remove_options,
-                         "no_changes" = 0,
-                         "add_carshare" = 25,
-                         "add_pt" = 50,
-                         "add_vehicle" = {
-                           if (!is.null(input$sa_car2_add_fuel) && !is.null(input$sa_car2_add_mileage)) {
-                             calculate_vehicle_cost(input$sa_car2_add_fuel, input$sa_car2_add_mileage)
-                           } else {
-                             0
-                           }
-                         },
-                         0)
-          paste0("£", cost, "/month")
-        } else {
-          "£0/month"
-        }
-      })
-      
-      
-    
       
       # Current vehicle costs
       current_cost <- calculate_monthly_cost(fuel_type, mileage_val)
-      # Default replacement cost (will be updated reactively)
-      default_replace_cost <- calculate_monthly_cost("Petrol", mileage_val)
       
       # Vehicle description for labels
       vehicle_desc <- paste0(tolower(fuel_type), " ", tolower(vehicle_type), 
                              " driven approximately ", mileage_val, " miles per year")
       
+      # Collapsible container
+      div(
+        # Clickable header
+        div(
+          class = "vehicle-header",
+          onclick = paste0("toggleVehicle(", car_number, ")"),
+          h5(paste0("Vehicle ", car_number, ": ", vehicle_desc), style = "margin: 0;"),
+          tags$script(HTML(paste0("
+          function toggleVehicle(carNum) {
+            var content = document.getElementById('vehicle-content-' + carNum);
+            content.classList.toggle('show');
+          }
+        ")))
+        ),
+        
+        # Collapsible content
+        div(
+          id = paste0("vehicle-content-", car_number),
+          class = "vehicle-content",
+          
+          wellPanel(
+            style = "background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);",
+            
+            tags$table(
+              style = "width: 100%; border-collapse: collapse; margin: 10px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
+              class = "table table-bordered",
+              tags$thead(
+                tags$tr(
+                  tags$th(
+                    style = "width:25%; border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #dc3545 0%, #bd2130 100%); color: white; text-align: center;",
+                    HTML(paste0("Keep this vehicle:<br>", vehicle_desc))
+                  ),
+                  tags$th(style = "width:25%; border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); color: white; text-align: center;", 
+                          strong("Replace this vehicle with:")),
+                  tags$th(style = "width:25%; border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; text-align: center;", 
+                          strong("Remove and use PT")),
+                  tags$th(style = "width:25%; border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; text-align: center;", 
+                          strong("Remove and use Car-sharing"))
+                )
+              ),
+              tags$tbody(
+                tags$tr(
+                  tags$td(style = "border: 1px solid #dee2e6; padding: 12px; background-color: #f8d7da; text-align: center;", 
+                          div(style = "font-size: 16px; font-weight: bold; color: #721c24;", 
+                              paste0("£", current_cost, "/month"))),
+                  tags$td(style = "border: 1px solid #dee2e6; padding: 12px; background-color: #d4edda; text-align: center;", 
+                          div(style = "font-size: 16px; font-weight: bold; color: #155724;",
+                              textOutput(paste0("sa_car", car_number, "_replace_cost"), inline = TRUE))),
+                  tags$td(style = "border: 1px solid #dee2e6; padding: 12px; background-color: #cce7ff; text-align: center;", 
+                          div(style = "font-size: 16px; font-weight: bold; color: #0056b3;",
+                              "£50/month")),
+                  tags$td(style = "border: 1px solid #dee2e6; padding: 12px; background-color: #cce7ff; text-align: center;", 
+                          div(style = "font-size: 16px; font-weight: bold; color: #0056b3;",
+                              "£25/month"))
+                ),
+                
+                tags$tr(
+                  tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #fce8e8;", 
+                          div(style = "text-align: center;",
+                              p("Second attribute level here", style = "margin: 5px 0; font-size: 12px; color: #495057;"))),
+                  tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #e8f5e8;", 
+                          div(style = "text-align: center;",
+                              p("Second attribute level here", style = "margin: 5px 0; font-size: 12px; color: #495057;"))),
+                  tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #e6f3ff;", 
+                          div(style = "text-align: center;",
+                              p("Second attribute level here", style = "margin: 5px 0; font-size: 12px; color: #495057;"))),
+                  tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #e6f3ff;", 
+                          div(style = "text-align: center;",
+                              p("Second attribute level here", style = "margin: 5px 0; font-size: 12px; color: #495057;")))
+                ),
+                
+                tags$tr(
+                  tags$td(
+                    style = "border: 1px solid #dee2e6; padding: 8px; background-color: #fce8e8;",
+                    div(
+                      p(
+                        "How would you change your use of this vehicle?",
+                        style = "margin: 5px 0; font-size: 12px; color: #495057; text-align: center;"
+                      ),
+                      div(
+                        style = "padding: 5px;",
+                        sliderInput(
+                          usage_slider_id,
+                          label   = NULL,
+                          min     = -2,
+                          max     = 2,
+                          value   = 0,
+                          step    = 0.1,
+                          ticks   = FALSE,
+                          width   = "100%"
+                        ),
+                        div(
+                          style = "text-align: center; margin-top: 15px; font-size: 12px; color: #495057;",
+                          span("Stop using", style = "float:left"),
+                          span("No change", style = "margin: 0 20px;"),
+                          span("Double usage", style = "float:right")
+                        )
+                      )
+                    )
+                  )
+                  ,
+                  tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #e8f5e8;", 
+                          div(
+                            selectInput(replace_type_id, "Vehicle Type:", 
+                                        choices = c("Car", "Van", "Motorbike"), 
+                                        width = "100%"),
+                            selectInput(replace_fuel_id, "Fuel Type:", 
+                                        choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid"), 
+                                        width = "100%"),
+                            selectInput(replace_mileage_id, "Annual Mileage:", 
+                                        choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"), 
+                                        selected = mileage_val, width = "100%")
+                          )),
+                  tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #e6f3ff;",
+                          div(style = "text-align: center;",
+                              checkboxInput(remove_pt_id, "Add Leeds Travel Pass", value = FALSE)
+                          )),
+                  tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #e6f3ff;",
+                          div(style = "text-align: center;",
+                              checkboxInput(remove_carshare_id, "Add Car-sharing", value = FALSE)
+                          ))
+                ),
+                
+                # Radio button row
+                tags$tr(
+                  tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #f8d7da;",
+                          radioButtons(
+                            inputId = decision_id,
+                            label = NULL,
+                            choices = c("Keep this vehicle" = "Keep this vehicle"),
+                            inline = TRUE,
+                            selected = character(0)
+                          )
+                  ),
+                  tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #d4edda;",
+                          radioButtons(
+                            inputId = decision_id,
+                            label = NULL,
+                            choices = c("Replace this vehicle" = "Replace this vehicle"),
+                            inline = TRUE,
+                            selected = character(0)
+                          )
+                  ),
+                  tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #cce7ff;",
+                          radioButtons(
+                            inputId = decision_id,
+                            label = NULL,
+                            choices = c("Remove and use PT" = "Remove and use PT"),
+                            inline = TRUE,
+                            selected = character(0)
+                          )
+                  ),
+                  tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #cce7ff;",
+                          radioButtons(
+                            inputId = decision_id,
+                            label = NULL,
+                            choices = c("Remove and use Car-sharing" = "Remove and use Car-sharing"),
+                            inline = TRUE,
+                            selected = character(0)
+                          )
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    }
+    
+    # Zero car adaptation function - now creates a table like other vehicles
+    create_zero_car_adaptation_table <- function() {
       wellPanel(
         style = "background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);",
         
-        # h5(paste0("Vehicle ", car_number, " Decisions"), style = "color: #495057; margin-bottom: 20px;"),
+        h4("Travel Options for Zero-Car Household", style = "color: #495057; margin-bottom: 20px;"),
         
         tags$table(
           style = "width: 100%; border-collapse: collapse; margin: 10px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
           class = "table table-bordered",
           tags$thead(
             tags$tr(
-            #   tags$th(style = "border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; text-align: center;", 
-            #           paste0("Keep this vehicle: ", vehicle_desc)),
-              tags$th(
-                style = "width:33%; border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; text-align: center;",
-                HTML(paste0("Keep this vehicle:<br>", vehicle_desc))
-              ),
-              tags$th(style = "width:33%; border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); color: white; text-align: center;", 
-                      strong("Replace this vehicle with:")),
               tags$th(style = "width:33%; border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #dc3545 0%, #bd2130 100%); color: white; text-align: center;", 
-                      strong("Remove this vehicle and:"))
+                      strong("No Changes")),
+              tags$th(style = "width:33%; border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); color: white; text-align: center;", 
+                      strong("Add Public Transport")),
+              tags$th(style = "width:33%; border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; text-align: center;", 
+                      strong("Add Car-sharing"))
             )
           ),
           tags$tbody(
             tags$tr(
-              tags$td(style = "border: 1px solid #dee2e6; padding: 12px; background-color: #cce7ff; text-align: center;", 
-                      div(style = "font-size: 16px; font-weight: bold; color: #0056b3;", 
-                          paste0("£", current_cost, "/month"))),
-              tags$td(style = "border: 1px solid #dee2e6; padding: 12px; background-color: #d4edda; text-align: center;", 
-                      div(style = "font-size: 16px; font-weight: bold; color: #155724;",
-                          textOutput(paste0("sa_car", car_number, "_replace_cost"), inline = TRUE))),
               tags$td(style = "border: 1px solid #dee2e6; padding: 12px; background-color: #f8d7da; text-align: center;", 
-                      div(style = "font-size: 16px; font-weight: bold; color: #721c24;",
-                          textOutput(paste0("sa_car", car_number, "_remove_cost"), inline = TRUE)))
+                      div(style = "font-size: 16px; font-weight: bold; color: #721c24;", "£0/month")),
+              tags$td(style = "border: 1px solid #dee2e6; padding: 12px; background-color: #d4edda; text-align: center;", 
+                      div(style = "font-size: 16px; font-weight: bold; color: #155724;", "£50/month")),
+              tags$td(style = "border: 1px solid #dee2e6; padding: 12px; background-color: #cce7ff; text-align: center;", 
+                      div(style = "font-size: 16px; font-weight: bold; color: #0056b3;", "£25/month"))
             ),
             
             tags$tr(
-              tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #e6f3ff;", 
+              tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #fce8e8;", 
                       div(style = "text-align: center;",
                           p("Second attribute level here", style = "margin: 5px 0; font-size: 12px; color: #495057;"))),
               tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #e8f5e8;", 
                       div(style = "text-align: center;",
                           p("Second attribute level here", style = "margin: 5px 0; font-size: 12px; color: #495057;"))),
-              tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #fce8e8;", 
+              tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #e6f3ff;", 
                       div(style = "text-align: center;",
                           p("Second attribute level here", style = "margin: 5px 0; font-size: 12px; color: #495057;")))
             ),
             
             tags$tr(
+              tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #fce8e8;", 
+                      div(style = "text-align: center;",
+                          p("Continue current travel patterns", style = "margin: 5px 0; font-size: 12px; color: #495057;"))),
+              tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #e8f5e8;", 
+                      div(style = "text-align: center;",
+                          p("Get Leeds Travel Pass", style = "margin: 5px 0; font-size: 12px; color: #495057;"))),
               tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #e6f3ff;", 
                       div(style = "text-align: center;",
-                          p("Continue using your current vehicle", style = "margin: 5px 0; font-size: 12px; color: #495057;"))),
-              tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #e8f5e8;", 
-                      div(
-                        selectInput(replace_type_id, "Vehicle Type:", 
-                                    choices = c("Car", "Van", "Motorbike"), 
-                                    width = "100%"),
-                        selectInput(replace_fuel_id, "Fuel Type:", 
-                                    choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid"), 
-                                    width = "100%"),
-                        selectInput(replace_mileage_id, "Annual Mileage:", 
-                                    choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"), 
-                                    selected = mileage_val, width = "100%")
-                      )),
-              tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #fce8e8;", 
-                      selectInput(remove_options_id, "Add new travel options:", 
-                                  choices = c(
-                                    "No other changes" = "no_changes",
-                                    "Add 'INFUZE_TRIAL' Car Sharing" = "add_carshare",
-                                    "Add a 'Leeds Travel Pass'" = "add_pt",
-                                    "Add an ADDITIONAL owned vehicle" = "add_vehicle"
-                                  ), width = "100%"),
-                      
-                      conditionalPanel(
-                                condition = paste0("input.", remove_options_id, " == 'add_vehicle'"),
-                                wellPanel(style = "background-color: #D5F5E3; margin-top: 15px;",
-                                          h5("Details of the ADDITIONAL vehicle:"),
-                                          div(
-                                            selectInput(paste0("sa_car", car_number, "_add_type"), 
-                                                        "Vehicle Type:", 
-                                                        choices = c("Car", 
-                                                                    "Van", 
-                                                                    "Motorbike"), 
-                                                        width = "100%"),
-                                            selectInput(paste0("sa_car", car_number, "_add_fuel"), 
-                                                        "Fuel Type:", 
-                                                        choices = c("Petrol", 
-                                                                    "Diesel", 
-                                                                    "Fully Electric", 
-                                                                    "Plug-in Hybrid"), 
-                                                        width = "100%"),
-                                            selectInput(paste0("sa_car", 
-                                                               car_number, 
-                                                               "_add_mileage"), 
-                                                        "Annual Mileage:", 
-                                                        choices = c("0-2,000", 
-                                                                    "2,001-5,000", 
-                                                                    "5,001 - 10,000", 
-                                                                    "10,001+"), 
-                                                        selected = mileage_val, width = "100%")
-                                          )
-                                          # fluidRow(
-                                          #   column(4, selectInput(paste0("sa_car", car_number, "_add_type"), "Vehicle Type:",
-                                          #                         choices = c("Car", "Van", "Motorbike"))),
-                                          #   column(4, selectInput(paste0("sa_car", car_number, "_add_fuel"), "Main Fuel Type:",
-                                          #                         choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid"))),
-                                          #   column(4, selectInput(paste0("sa_car", car_number, "_add_mileage"), "Annual Mileage:",
-                                          #                         choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+")))
-                                          # )
-                                )
-                              )
-                      )
+                          p("Join INFUZE_TRIAL car-sharing", style = "margin: 5px 0; font-size: 12px; color: #495057;")))
             ),
-            # NEW (reactive):
+            
+            # Radio button row
             tags$tr(
-              tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #cce7ff;",
-                radioButtons(
-                  inputId   = decision_id,
-                  label     = NULL,
-                  choices   = c(
-                    "Keep this vehicle"    = "Keep this vehicle"
-                  ),
-                  inline    = TRUE,
-                  selected = character(0)   # <-- no default
-                )
+              tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #f8d7da;",
+                      radioButtons("sa_0_car_decision", NULL, choices = c("No changes" = "no_changes"), inline = TRUE, selected = character(0))
               ),
               tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #d4edda;",
-                      radioButtons(
-                        inputId   = decision_id,
-                        label     = NULL,
-                        choices   = c(
-                          "Replace this vehicle" = "Replace this vehicle"
-                        ),
-                        inline    = TRUE,
-                        selected = character(0)   # <-- no default
-                      )
+                      radioButtons("sa_0_car_decision", NULL, choices = c("Add PT" = "add_pt"), inline = TRUE, selected = character(0))
               ),
-              tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #f8d7da;",
-                      radioButtons(
-                        inputId   = decision_id,
-                        label     = NULL,
-                        choices   = c(
-                          "Remove this vehicle"  = "Remove this vehicle"
-                        ),
-                        inline    = TRUE,
-                         selected = character(0)   # <-- no default
-                      )
+              tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #cce7ff;",
+                      radioButtons("sa_0_car_decision", NULL, choices = c("Add Car-sharing" = "add_carshare"), inline = TRUE, selected = character(0))
               )
             )
-            # tags$tr(
-            #   tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #cce7ff;",
-            #           tags$input(type = "radio", name = decision_id, value = "Keep this vehicle", style = "transform: scale(1.2);")),
-            #   tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #d4edda;",
-            #           tags$input(type = "radio", name = decision_id, value = "Replace this vehicle", style = "transform: scale(1.2);")),
-            #   tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #f8d7da;",
-            #           tags$input(type = "radio", name = decision_id, value = "Remove this vehicle", style = "transform: scale(1.2);"))
-            # )
           )
-        ),
-        
-        # Conditional panel for additional vehicle details when "Add an ADDITIONAL owned vehicle" is selected
-        # conditionalPanel(
-        #   condition = paste0("input.", remove_options_id, " == 'add_vehicle'"),
-        #   wellPanel(style = "background-color: #D5F5E3; margin-top: 15px;",
-        #             h5("Details of the ADDITIONAL vehicle:"),
-        #             fluidRow(
-        #               column(4, selectInput(paste0("sa_car", car_number, "_add_type"), "Vehicle Type:", 
-        #                                     choices = c("Car", "Van", "Motorbike"))),
-        #               column(4, selectInput(paste0("sa_car", car_number, "_add_fuel"), "Main Fuel Type:", 
-        #                                     choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid"))),
-        #               column(4, selectInput(paste0("sa_car", car_number, "_add_mileage"), "Annual Mileage:", 
-        #                                     choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+")))
-        #             )
-        #   )
-        # )
+        )
       )
     }
+    
     # --- Assemble the UI ---
     req(input$num_cars)
     
-    # FIX: Define the zero_car_adaptation_ui object BEFORE it is used.
-    zero_car_adaptation_ui <- conditionalPanel(
-      # Simplified condition - show if they start with 0 cars OR if all their cars are removed
-      condition = "input.num_cars == '0' || (input.num_cars == '1' && input.sa_car1_decision == 'Remove this vehicle') || 
-      (input.num_cars == '2' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle') || 
-      (input.num_cars == '3' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle') || (input.num_cars == '4+' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle' && input.sa_car4_decision == 'Remove this vehicle')",
-      hr(),
-      h4("Decisions about your new travel portfolio:"),
-      p("Since your household would not have an owned car in this scenario, what new travel options would you adopt?"),
-      checkboxGroupInput("sa_0_car_add_options", "Select all that apply:",
-                         choices = c("Sign up for 'INFUZE_TRIAL' Car Sharing", 
-                                     "Get a 'Leeds Travel Pass' for Public Transport",
-                                     "Acquire a new OWNED vehicle")),
-      conditionalPanel(
-        condition = "input.sa_0_car_add_options && input.sa_0_car_add_options.indexOf('Acquire a new OWNED vehicle') > -1",
-        wellPanel(style = "background-color: #D5F5E3;",
-                  h5("Details of the NEW vehicle:"),
-                  selectInput("sa_0_car_new_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
-                  selectInput("sa_0_car_new_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
-                  selectInput("sa_0_car_new_mileage", "Estimated Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"))
-        )
-      )
-    )
-    
     scenario_and_costs_table <- wellPanel(
       style = "background-color: white; border: 2px solid black;",
-      # h4("Scenario Details & Your Costs"),
       tags$table(
         style = "width: 100%; border-collapse: collapse;",
         tags$thead(
@@ -691,35 +722,12 @@ function(input, output, session) {
         )
       )
     )
-    # Then in your ui_to_render section, replace:
-    # ui_to_render <- list(intro_line, scenario_box, main_question)
-    # with:
+    
     ui_to_render <- list(scenario_and_costs_table, main_question)
     
     # Check if user starts with zero cars
     if (input$num_cars == "0") {
-      # Show zero-car options immediately
-      zero_car_ui <- list(
-        hr(),
-        h4("Decisions about your travel portfolio:"),
-        p("Since your household does not currently own a vehicle, what new travel options would you adopt in this scenario?"),
-        selectInput("sa_0_car_add_options", "Select all that apply:",
-                    choices = c(
-                      "No, no other changes",
-                      "Sign up for 'INFUZE_TRIAL' Car Sharing",
-                      "Get a 'Leeds Travel Pass' for Public Transport",
-                      "Acquire a new OWNED vehicle")),
-        conditionalPanel(
-          condition = "input.sa_0_car_add_options && input.sa_0_car_add_options.indexOf('Acquire a new OWNED vehicle') > -1",
-          wellPanel(style = "background-color: #D5F5E3;",
-                    h5("Details of the NEW vehicle:"),
-                    selectInput("sa_0_car_new_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
-                    selectInput("sa_0_car_new_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
-                    selectInput("sa_0_car_new_mileage", "Estimated Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"))
-          )
-        )
-      )
-      ui_to_render <- append(ui_to_render, zero_car_ui)
+      ui_to_render <- append(ui_to_render, list(create_zero_car_adaptation_table()))
     } else {
       # For households with vehicles
       ui_to_render <- append(ui_to_render, list(h4("")))
@@ -743,46 +751,514 @@ function(input, output, session) {
       if (input$num_cars == "4+" && !is.null(input$car4_type)) {
         ui_to_render <- append(ui_to_render, list(create_vehicle_adaptation_block(4, input$car4_type, input$car4_fuel, input$car4_mileage)))
       }
-      
-      # Add the conditional panel for when all vehicles are removed
-      ## I'm adding 'TEST' here to break the logic as I couldn't work out how to remove it lol
-      zero_car_adaptation_ui <- conditionalPanel(
-        condition = "(input.num_cars == '1' && input.sa_car1_decision == ' TEST Remove this vehicle' && input.remove_options_id != 'add_vehicle') || 
-        (input.num_cars == '2' && input.sa_car1_decision == 'TEST Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.remove_options_id != 'add_vehicle') || 
-        (input.num_cars == '3' && input.sa_car1_decision == 'TEST Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle' && input.remove_options_id != 'add_vehicle') || 
-        (input.num_cars == '4+' && input.sa_car1_decision == 'TESTRemove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle' && input.sa_car4_decision == 'Remove this vehicle' && input.remove_options_id != 'add_vehicle')",
-        hr(),
-        h4("Decisions about your new travel portfolio:"),
-        p("Since your household would not have an owned car in this scenario, what new travel options would you adopt?"),
-        checkboxGroupInput("sa_0_car_add_options", "Select all that apply:",
-                           choices = c("Sign up for 'INFUZE_TRIAL' Car Sharing", 
-                                       "Get a 'Leeds Travel Pass' for Public Transport",
-                                       "Acquire a new OWNED vehicle")),
-        conditionalPanel(
-          condition = "input.sa_0_car_add_options && input.sa_0_car_add_options.indexOf('Acquire a new OWNED vehicle') > -1",
-          wellPanel(style = "background-color: #D5F5E3;",
-                    h5("Details of the NEW vehicle:"),
-                    selectInput("sa_0_car_new_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
-                    selectInput("sa_0_car_new_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
-                    selectInput("sa_0_car_new_mileage", "Estimated Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"))
-          )
-        )
-      )
-      
-      ui_to_render <- append(ui_to_render, list(zero_car_adaptation_ui))
     }
-
-  
+    
     ui_to_render <- append(ui_to_render, 
                            list(hr(), 
                                 actionButton("to_sa_button2", "Version 2", 
                                              class = "btn-success btn-lg")))
-    # ui_to_render <- append(ui_to_render, list(hr(), cost_box, hr(), actionButton("to_summary_button", "I have decided, see summary", class = "btn-success btn-lg")))
     
     do.call(tagList, ui_to_render)
     
   })
   
+  # ========= SA VERSION commented out =========
+#   output$sa_ui_placeholder <- renderUI({
+#     
+#     tags$style(HTML("
+#   /* Make radio circles and labels larger */
+#   .radio .form-check-input {
+#     transform: scale(1.5);
+#     margin-right: 8px;
+#   }
+#   .radio .form-check-label {
+#     font-size: 1.1em;
+#     padding: 4px 0;
+#     cursor: pointer;
+#   }
+# 
+#   /* Make all .btn elements larger */
+#   .btn {
+#     padding: 0.75rem 1.25rem !important;
+#     font-size: 1.25rem !important;
+#   }
+# "))
+#     
+#     # --- UI Components ---
+#     # intro_line <- h4("Please consider how you would react to the following hypothetical scenario:")
+#   
+#     
+#     main_question <- h3("How would you adapt your household's travel options?")
+#     
+#     # --- Helper function to create the nested UI for ONE vehicle ---
+#     # Replace the create_vehicle_adaptation_block function with this DCE version:
+#     
+#     create_vehicle_adaptation_block <- function(car_number, vehicle_type, fuel_type, mileage_val) {
+#       
+#       decision_id <- paste0("sa_car", car_number, "_decision")
+#       replace_type_id <- paste0("sa_car", car_number, "_replace_type")
+#       replace_fuel_id <- paste0("sa_car", car_number, "_replace_fuel")
+#       replace_mileage_id <- paste0("sa_car", car_number, "_replace_mileage")
+#       remove_options_id <- paste0("sa_car", car_number, "_remove_options")
+#       
+#       # Calculate costs for each alternative
+#       calculate_monthly_cost <- function(fuel, mileage) {
+#         base_costs <- list(
+#           "Petrol" = 150 * 1.25,
+#           "Diesel" = 160 * 1.25, 
+#           "Fully Electric" = 80,
+#           "Plug-in Hybrid" = 120 * 1.15
+#         )
+#         
+#         parking_increase <- switch(mileage,
+#                                    "0-2,000" = 5,
+#                                    "2,001-5,000" = 10,
+#                                    "5,001 - 10,000" = 15,
+#                                    "10,001+" = 20)
+#         
+#         mileage_multiplier <- switch(mileage,
+#                                      "0-2,000" = 0.6,
+#                                      "2,001-5,000" = 1.0,
+#                                      "5,001 - 10,000" = 1.5,
+#                                      "10,001+" = 2.2)
+#         
+#         return(round((base_costs[[fuel]] * mileage_multiplier) + (parking_increase * 1.20), 0))
+#       }
+#       
+#       
+#       
+#       # Vehicle cost calculation function (same as in your existing code)
+#       calculate_vehicle_cost <- function(fuel_type, mileage_bracket) {
+#         base_costs <- list(
+#           "Petrol" = 150 * 1.25,
+#           "Diesel" = 160 * 1.25,
+#           "Fully Electric" = 80,
+#           "Plug-in Hybrid" = 120 * 1.15
+#         )
+#         
+#         parking_increase <- switch(mileage_bracket,
+#                                    "0-2,000" = 5,
+#                                    "2,001-5,000" = 10,
+#                                    "5,001 - 10,000" = 15,
+#                                    "10,001+" = 20)
+#         
+#         mileage_multiplier <- switch(mileage_bracket,
+#                                      "0-2,000" = 0.6,
+#                                      "2,001-5,000" = 1.0,
+#                                      "5,001 - 10,000" = 1.5,
+#                                      "10,001+" = 2.2)
+#         
+#         return(round((base_costs[[fuel_type]] * mileage_multiplier) + (parking_increase * 1.20), 0))
+#       }
+#       
+#       # Reactive outputs for Car 1 costs
+#       output$sa_car1_replace_cost <- renderText({
+#         if (!is.null(input$sa_car1_replace_fuel) && !is.null(input$sa_car1_replace_mileage)) {
+#           cost <- calculate_vehicle_cost(input$sa_car1_replace_fuel, input$sa_car1_replace_mileage)
+#           paste0("£", cost, "/month")
+#         } else {
+#           "£[select options]"
+#         }
+#       })
+#       
+#       output$sa_car1_remove_cost <- renderText({
+#         if (!is.null(input$sa_car1_remove_options)) {
+#           cost <- switch(input$sa_car1_remove_options,
+#                          "no_changes" = 0,
+#                          "add_carshare" = 25,  # Assume £25/month average usage
+#                          "add_pt" = 50,        # Leeds Travel Pass
+#                          "add_vehicle" = {
+#                            if (!is.null(input$sa_car1_add_fuel) && !is.null(input$sa_car1_add_mileage)) {
+#                              calculate_vehicle_cost(input$sa_car1_add_fuel, input$sa_car1_add_mileage)
+#                            } else {
+#                              0
+#                            }
+#                          },
+#                          0)
+#           paste0("£", cost, "/month")
+#         } else {
+#           "£0/month"
+#         }
+#       })
+#       
+#       # Reactive outputs for Car 2 costs (if you have 2+ cars)
+#       output$sa_car2_replace_cost <- renderText({
+#         if (!is.null(input$sa_car2_replace_fuel) && !is.null(input$sa_car2_replace_mileage)) {
+#           cost <- calculate_vehicle_cost(input$sa_car2_replace_fuel, input$sa_car2_replace_mileage)
+#           paste0("£", cost, "/month")
+#         } else {
+#           "£[select options]"
+#         }
+#       })
+#       
+#       output$sa_car2_remove_cost <- renderText({
+#         if (!is.null(input$sa_car2_remove_options)) {
+#           cost <- switch(input$sa_car2_remove_options,
+#                          "no_changes" = 0,
+#                          "add_carshare" = 25,
+#                          "add_pt" = 50,
+#                          "add_vehicle" = {
+#                            if (!is.null(input$sa_car2_add_fuel) && !is.null(input$sa_car2_add_mileage)) {
+#                              calculate_vehicle_cost(input$sa_car2_add_fuel, input$sa_car2_add_mileage)
+#                            } else {
+#                              0
+#                            }
+#                          },
+#                          0)
+#           paste0("£", cost, "/month")
+#         } else {
+#           "£0/month"
+#         }
+#       })
+#       
+#       
+#     
+#       
+#       # Current vehicle costs
+#       current_cost <- calculate_monthly_cost(fuel_type, mileage_val)
+#       # Default replacement cost (will be updated reactively)
+#       default_replace_cost <- calculate_monthly_cost("Petrol", mileage_val)
+#       
+#       # Vehicle description for labels
+#       vehicle_desc <- paste0(tolower(fuel_type), " ", tolower(vehicle_type), 
+#                              " driven approximately ", mileage_val, " miles per year")
+#       
+#       wellPanel(
+#         style = "background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);",
+#         
+#         # h5(paste0("Vehicle ", car_number, " Decisions"), style = "color: #495057; margin-bottom: 20px;"),
+#         
+#         tags$table(
+#           style = "width: 100%; border-collapse: collapse; margin: 10px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
+#           class = "table table-bordered",
+#           tags$thead(
+#             tags$tr(
+#             #   tags$th(style = "border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; text-align: center;", 
+#             #           paste0("Keep this vehicle: ", vehicle_desc)),
+#               tags$th(
+#                 style = "width:33%; border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; text-align: center;",
+#                 HTML(paste0("Keep this vehicle:<br>", vehicle_desc))
+#               ),
+#               tags$th(style = "width:33%; border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); color: white; text-align: center;", 
+#                       strong("Replace this vehicle with:")),
+#               tags$th(style = "width:33%; border: 1px solid #dee2e6; padding: 12px; background: linear-gradient(135deg, #dc3545 0%, #bd2130 100%); color: white; text-align: center;", 
+#                       strong("Remove this vehicle and:"))
+#             )
+#           ),
+#           tags$tbody(
+#             tags$tr(
+#               tags$td(style = "border: 1px solid #dee2e6; padding: 12px; background-color: #cce7ff; text-align: center;", 
+#                       div(style = "font-size: 16px; font-weight: bold; color: #0056b3;", 
+#                           paste0("£", current_cost, "/month"))),
+#               tags$td(style = "border: 1px solid #dee2e6; padding: 12px; background-color: #d4edda; text-align: center;", 
+#                       div(style = "font-size: 16px; font-weight: bold; color: #155724;",
+#                           textOutput(paste0("sa_car", car_number, "_replace_cost"), inline = TRUE))),
+#               tags$td(style = "border: 1px solid #dee2e6; padding: 12px; background-color: #f8d7da; text-align: center;", 
+#                       div(style = "font-size: 16px; font-weight: bold; color: #721c24;",
+#                           textOutput(paste0("sa_car", car_number, "_remove_cost"), inline = TRUE)))
+#             ),
+#             
+#             tags$tr(
+#               tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #e6f3ff;", 
+#                       div(style = "text-align: center;",
+#                           p("Second attribute level here", style = "margin: 5px 0; font-size: 12px; color: #495057;"))),
+#               tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #e8f5e8;", 
+#                       div(style = "text-align: center;",
+#                           p("Second attribute level here", style = "margin: 5px 0; font-size: 12px; color: #495057;"))),
+#               tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #fce8e8;", 
+#                       div(style = "text-align: center;",
+#                           p("Second attribute level here", style = "margin: 5px 0; font-size: 12px; color: #495057;")))
+#             ),
+#             
+#             tags$tr(
+#               tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #e6f3ff;", 
+#                       div(style = "text-align: center;",
+#                           p("Continue using your current vehicle", style = "margin: 5px 0; font-size: 12px; color: #495057;"))),
+#               tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #e8f5e8;", 
+#                       div(
+#                         selectInput(replace_type_id, "Vehicle Type:", 
+#                                     choices = c("Car", "Van", "Motorbike"), 
+#                                     width = "100%"),
+#                         selectInput(replace_fuel_id, "Fuel Type:", 
+#                                     choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid"), 
+#                                     width = "100%"),
+#                         selectInput(replace_mileage_id, "Annual Mileage:", 
+#                                     choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"), 
+#                                     selected = mileage_val, width = "100%")
+#                       )),
+#               tags$td(style = "border: 1px solid #dee2e6; padding: 8px; background-color: #fce8e8;", 
+#                       selectInput(remove_options_id, "Add new travel options:", 
+#                                   choices = c(
+#                                     "No other changes" = "no_changes",
+#                                     "Add 'INFUZE_TRIAL' Car Sharing" = "add_carshare",
+#                                     "Add a 'Leeds Travel Pass'" = "add_pt",
+#                                     "Add an ADDITIONAL owned vehicle" = "add_vehicle"
+#                                   ), width = "100%"),
+#                       
+#                       conditionalPanel(
+#                                 condition = paste0("input.", remove_options_id, " == 'add_vehicle'"),
+#                                 wellPanel(style = "background-color: #D5F5E3; margin-top: 15px;",
+#                                           h5("Details of the ADDITIONAL vehicle:"),
+#                                           div(
+#                                             selectInput(paste0("sa_car", car_number, "_add_type"), 
+#                                                         "Vehicle Type:", 
+#                                                         choices = c("Car", 
+#                                                                     "Van", 
+#                                                                     "Motorbike"), 
+#                                                         width = "100%"),
+#                                             selectInput(paste0("sa_car", car_number, "_add_fuel"), 
+#                                                         "Fuel Type:", 
+#                                                         choices = c("Petrol", 
+#                                                                     "Diesel", 
+#                                                                     "Fully Electric", 
+#                                                                     "Plug-in Hybrid"), 
+#                                                         width = "100%"),
+#                                             selectInput(paste0("sa_car", 
+#                                                                car_number, 
+#                                                                "_add_mileage"), 
+#                                                         "Annual Mileage:", 
+#                                                         choices = c("0-2,000", 
+#                                                                     "2,001-5,000", 
+#                                                                     "5,001 - 10,000", 
+#                                                                     "10,001+"), 
+#                                                         selected = mileage_val, width = "100%")
+#                                           )
+#                                           # fluidRow(
+#                                           #   column(4, selectInput(paste0("sa_car", car_number, "_add_type"), "Vehicle Type:",
+#                                           #                         choices = c("Car", "Van", "Motorbike"))),
+#                                           #   column(4, selectInput(paste0("sa_car", car_number, "_add_fuel"), "Main Fuel Type:",
+#                                           #                         choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid"))),
+#                                           #   column(4, selectInput(paste0("sa_car", car_number, "_add_mileage"), "Annual Mileage:",
+#                                           #                         choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+")))
+#                                           # )
+#                                 )
+#                               )
+#                       )
+#             ),
+#             # NEW (reactive):
+#             tags$tr(
+#               tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #cce7ff;",
+#                 radioButtons(
+#                   inputId   = decision_id,
+#                   label     = NULL,
+#                   choices   = c(
+#                     "Keep this vehicle"    = "Keep this vehicle"
+#                   ),
+#                   inline    = TRUE,
+#                   selected = character(0)   # <-- no default
+#                 )
+#               ),
+#               tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #d4edda;",
+#                       radioButtons(
+#                         inputId   = decision_id,
+#                         label     = NULL,
+#                         choices   = c(
+#                           "Replace this vehicle" = "Replace this vehicle"
+#                         ),
+#                         inline    = TRUE,
+#                         selected = character(0)   # <-- no default
+#                       )
+#               ),
+#               tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #f8d7da;",
+#                       radioButtons(
+#                         inputId   = decision_id,
+#                         label     = NULL,
+#                         choices   = c(
+#                           "Remove this vehicle"  = "Remove this vehicle"
+#                         ),
+#                         inline    = TRUE,
+#                          selected = character(0)   # <-- no default
+#                       )
+#               )
+#             )
+#             # tags$tr(
+#             #   tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #cce7ff;",
+#             #           tags$input(type = "radio", name = decision_id, value = "Keep this vehicle", style = "transform: scale(1.2);")),
+#             #   tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #d4edda;",
+#             #           tags$input(type = "radio", name = decision_id, value = "Replace this vehicle", style = "transform: scale(1.2);")),
+#             #   tags$td(style = "border: 1px solid #dee2e6; padding: 8px; text-align: center; background-color: #f8d7da;",
+#             #           tags$input(type = "radio", name = decision_id, value = "Remove this vehicle", style = "transform: scale(1.2);"))
+#             # )
+#           )
+#         ),
+#         
+#         # Conditional panel for additional vehicle details when "Add an ADDITIONAL owned vehicle" is selected
+#         # conditionalPanel(
+#         #   condition = paste0("input.", remove_options_id, " == 'add_vehicle'"),
+#         #   wellPanel(style = "background-color: #D5F5E3; margin-top: 15px;",
+#         #             h5("Details of the ADDITIONAL vehicle:"),
+#         #             fluidRow(
+#         #               column(4, selectInput(paste0("sa_car", car_number, "_add_type"), "Vehicle Type:", 
+#         #                                     choices = c("Car", "Van", "Motorbike"))),
+#         #               column(4, selectInput(paste0("sa_car", car_number, "_add_fuel"), "Main Fuel Type:", 
+#         #                                     choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid"))),
+#         #               column(4, selectInput(paste0("sa_car", car_number, "_add_mileage"), "Annual Mileage:", 
+#         #                                     choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+")))
+#         #             )
+#         #   )
+#         # )
+#       )
+#     }
+#     # --- Assemble the UI ---
+#     req(input$num_cars)
+#     
+#     # FIX: Define the zero_car_adaptation_ui object BEFORE it is used.
+#     zero_car_adaptation_ui <- conditionalPanel(
+#       # Simplified condition - show if they start with 0 cars OR if all their cars are removed
+#       condition = "input.num_cars == '0' || (input.num_cars == '1' && input.sa_car1_decision == 'Remove this vehicle') || 
+#       (input.num_cars == '2' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle') || 
+#       (input.num_cars == '3' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle') || (input.num_cars == '4+' && input.sa_car1_decision == 'Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle' && input.sa_car4_decision == 'Remove this vehicle')",
+#       hr(),
+#       h4("Decisions about your new travel portfolio:"),
+#       p("Since your household would not have an owned car in this scenario, what new travel options would you adopt?"),
+#       checkboxGroupInput("sa_0_car_add_options", "Select all that apply:",
+#                          choices = c("Sign up for 'INFUZE_TRIAL' Car Sharing", 
+#                                      "Get a 'Leeds Travel Pass' for Public Transport",
+#                                      "Acquire a new OWNED vehicle")),
+#       conditionalPanel(
+#         condition = "input.sa_0_car_add_options && input.sa_0_car_add_options.indexOf('Acquire a new OWNED vehicle') > -1",
+#         wellPanel(style = "background-color: #D5F5E3;",
+#                   h5("Details of the NEW vehicle:"),
+#                   selectInput("sa_0_car_new_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
+#                   selectInput("sa_0_car_new_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
+#                   selectInput("sa_0_car_new_mileage", "Estimated Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"))
+#         )
+#       )
+#     )
+#     
+#     scenario_and_costs_table <- wellPanel(
+#       style = "background-color: white; border: 2px solid black;",
+#       # h4("Scenario Details & Your Costs"),
+#       tags$table(
+#         style = "width: 100%; border-collapse: collapse;",
+#         tags$thead(
+#           tags$tr(
+#             tags$th(style = "border: 1px solid #ddd; padding: 8px; background-color: #f2f2f2; width: 50%;", "Scenario Changes"),
+#             tags$th(style = "border: 1px solid #ddd; padding: 8px; background-color: #f2f2f2; width: 50%;", "Cost Estimates")
+#           )
+#         ),
+#         tags$tbody(
+#           tags$tr(
+#             tags$td(style = "border: 1px solid #ddd; padding: 8px; vertical-align: top;", 
+#                     tags$strong("Fuel prices: "), "+60p per litre"),
+#             tags$td(style = "border: 1px solid #ddd; padding: 8px; vertical-align: top;", 
+#                     tags$strong("Current monthly cost: £"), textOutput("current_monthly_formatted", inline = TRUE))
+#           ),
+#           tags$tr(
+#             tags$td(style = "border: 1px solid #ddd; padding: 8px; vertical-align: top;", 
+#                     tags$strong("Parking permit costs: "), "+20%"),
+#             tags$td(style = "border: 1px solid #ddd; padding: 8px; vertical-align: top;", 
+#                     tags$strong("Current annual cost: £"), textOutput("current_annual_formatted", inline = TRUE))
+#           ),
+#           tags$tr(
+#             tags$td(style = "border: 1px solid #ddd; padding: 8px; vertical-align: top;", 
+#                     tags$strong("Public Transport: "), "A new 'Leeds Travel Pass' for £50/month"),
+#             tags$td(style = "border: 1px solid #ddd; padding: 8px; vertical-align: top;", 
+#                     tags$strong("Estimated monthly cost: £"), textOutput("new_monthly_formatted", inline = TRUE),
+#                     " (", textOutput("monthly_change", inline = TRUE), ")")
+#           ),
+#           tags$tr(
+#             tags$td(style = "border: 1px solid #ddd; padding: 8px; vertical-align: top;", 
+#                     tags$strong("Car Club: "), "Membership to 'INFUZE_TRIAL' costs £5 per hour of use, with vehicles available within a 5-minute walk"),
+#             tags$td(style = "border: 1px solid #ddd; padding: 8px; vertical-align: top;", 
+#                     tags$strong("Estimated annual cost: £"), textOutput("new_annual_formatted", inline = TRUE),
+#                     " (", textOutput("annual_change", inline = TRUE), ")")
+#           )
+#         )
+#       )
+#     )
+#     # Then in your ui_to_render section, replace:
+#     # ui_to_render <- list(intro_line, scenario_box, main_question)
+#     # with:
+#     ui_to_render <- list(scenario_and_costs_table, main_question)
+#     
+#     # Check if user starts with zero cars
+#     if (input$num_cars == "0") {
+#       # Show zero-car options immediately
+#       zero_car_ui <- list(
+#         hr(),
+#         h4("Decisions about your travel portfolio:"),
+#         p("Since your household does not currently own a vehicle, what new travel options would you adopt in this scenario?"),
+#         selectInput("sa_0_car_add_options", "Select all that apply:",
+#                     choices = c(
+#                       "No, no other changes",
+#                       "Sign up for 'INFUZE_TRIAL' Car Sharing",
+#                       "Get a 'Leeds Travel Pass' for Public Transport",
+#                       "Acquire a new OWNED vehicle")),
+#         conditionalPanel(
+#           condition = "input.sa_0_car_add_options && input.sa_0_car_add_options.indexOf('Acquire a new OWNED vehicle') > -1",
+#           wellPanel(style = "background-color: #D5F5E3;",
+#                     h5("Details of the NEW vehicle:"),
+#                     selectInput("sa_0_car_new_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
+#                     selectInput("sa_0_car_new_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
+#                     selectInput("sa_0_car_new_mileage", "Estimated Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"))
+#           )
+#         )
+#       )
+#       ui_to_render <- append(ui_to_render, zero_car_ui)
+#     } else {
+#       # For households with vehicles
+#       ui_to_render <- append(ui_to_render, list(h4("")))
+#       
+#       # Vehicle 1
+#       if (!is.null(input$car1_type)) {
+#         ui_to_render <- append(ui_to_render, list(create_vehicle_adaptation_block(1, input$car1_type, input$car1_fuel, input$car1_mileage)))
+#       }
+#       
+#       # Vehicle 2
+#       if (input$num_cars %in% c("2", "3", "4+") && !is.null(input$car2_type)) {
+#         ui_to_render <- append(ui_to_render, list(create_vehicle_adaptation_block(2, input$car2_type, input$car2_fuel, input$car2_mileage)))
+#       }
+#       
+#       # Vehicle 3
+#       if (input$num_cars %in% c("3", "4+") && !is.null(input$car3_type)) {
+#         ui_to_render <- append(ui_to_render, list(create_vehicle_adaptation_block(3, input$car3_type, input$car3_fuel, input$car3_mileage)))
+#       }
+#       
+#       # Vehicle 4
+#       if (input$num_cars == "4+" && !is.null(input$car4_type)) {
+#         ui_to_render <- append(ui_to_render, list(create_vehicle_adaptation_block(4, input$car4_type, input$car4_fuel, input$car4_mileage)))
+#       }
+#       
+#       # Add the conditional panel for when all vehicles are removed
+#       ## I'm adding 'TEST' here to break the logic as I couldn't work out how to remove it lol
+#       zero_car_adaptation_ui <- conditionalPanel(
+#         condition = "(input.num_cars == '1' && input.sa_car1_decision == ' TEST Remove this vehicle' && input.remove_options_id != 'add_vehicle') || 
+#         (input.num_cars == '2' && input.sa_car1_decision == 'TEST Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.remove_options_id != 'add_vehicle') || 
+#         (input.num_cars == '3' && input.sa_car1_decision == 'TEST Remove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle' && input.remove_options_id != 'add_vehicle') || 
+#         (input.num_cars == '4+' && input.sa_car1_decision == 'TESTRemove this vehicle' && input.sa_car2_decision == 'Remove this vehicle' && input.sa_car3_decision == 'Remove this vehicle' && input.sa_car4_decision == 'Remove this vehicle' && input.remove_options_id != 'add_vehicle')",
+#         hr(),
+#         h4("Decisions about your new travel portfolio:"),
+#         p("Since your household would not have an owned car in this scenario, what new travel options would you adopt?"),
+#         checkboxGroupInput("sa_0_car_add_options", "Select all that apply:",
+#                            choices = c("Sign up for 'INFUZE_TRIAL' Car Sharing", 
+#                                        "Get a 'Leeds Travel Pass' for Public Transport",
+#                                        "Acquire a new OWNED vehicle")),
+#         conditionalPanel(
+#           condition = "input.sa_0_car_add_options && input.sa_0_car_add_options.indexOf('Acquire a new OWNED vehicle') > -1",
+#           wellPanel(style = "background-color: #D5F5E3;",
+#                     h5("Details of the NEW vehicle:"),
+#                     selectInput("sa_0_car_new_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
+#                     selectInput("sa_0_car_new_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
+#                     selectInput("sa_0_car_new_mileage", "Estimated Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"))
+#           )
+#         )
+#       )
+#       
+#       ui_to_render <- append(ui_to_render, list(zero_car_adaptation_ui))
+#     }
+# 
+#   
+#     ui_to_render <- append(ui_to_render, 
+#                            list(hr(), 
+#                                 actionButton("to_sa_button2", "Version 2", 
+#                                              class = "btn-success btn-lg")))
+#     # ui_to_render <- append(ui_to_render, list(hr(), cost_box, hr(), actionButton("to_summary_button", "I have decided, see summary", class = "btn-success btn-lg")))
+#     
+#     do.call(tagList, ui_to_render)
+#     
+#   })
+#   
   # ========= MOCKUP VERSION 2 =========
   output$sa_ui_placeholder2 <- renderUI({
     
