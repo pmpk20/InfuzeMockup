@@ -57,18 +57,10 @@ function(input, output, session) {
     # Basic vehicle running costs (fuel + insurance + maintenance per month)
     vehicle_monthly_cost <- function(fuel_type, mileage_bracket) {
       base_costs <- list(
-        "Petrol" = 150 * 1.25,
-        "Diesel" = 160 * 1.25,
-        "Fully Electric" = 80, # No fuel price increase
-        "Plug-in Hybrid" = 120 * 1.15 # Partial increase
-      )
-      
-      # Parking permit increase (+20%)
-      parking_increase <- switch(mileage_bracket,
-                                 "0-2,000" = 5,
-                                 "2,001-5,000" = 10,
-                                 "5,001 - 10,000" = 15,
-                                 "10,001+" = 20
+        "Petrol" = 150,
+        "Diesel" = 160,
+        "Fully Electric" = 80,
+        "Plug-in Hybrid" = 120
       )
       
       mileage_multiplier <- switch(mileage_bracket,
@@ -78,7 +70,7 @@ function(input, output, session) {
                                    "10,001+" = 2.2
       )
       
-      return((base_costs[[fuel_type]] * mileage_multiplier) + (parking_increase * 1.20))
+      return(base_costs[[fuel_type]] * mileage_multiplier)
     }
     
     # Add costs for each vehicle
@@ -121,6 +113,7 @@ function(input, output, session) {
   })
   
   # New monthly cost (Z) - based on Step 4 adaptation choices
+  # *** REVISED LOGIC FOR CLARITY AND ACCURACY ***
   new_monthly_cost <- reactive({
     req(input$num_cars)
     
@@ -154,137 +147,106 @@ function(input, output, session) {
       return((base_costs[[fuel_type]] * mileage_multiplier) + (parking_increase * 1.20))
     }
     
-    # Handle zero-car households that acquire new vehicles
+    # Handle zero-car households
     if (input$num_cars == "0") {
-      if (!is.null(input$sa_0_car_add_options) && 
-          grepl("Acquire a new OWNED vehicle", input$sa_0_car_add_options, ignore.case = TRUE)) {
-        if (!is.null(input$sa_0_car_new_fuel) && !is.null(input$sa_0_car_new_mileage)) {
-          total_cost <- total_cost + vehicle_monthly_cost_new(input$sa_0_car_new_fuel, input$sa_0_car_new_mileage)
-        }
-      }
-    }
-    
-    # Process each vehicle based on SA decisions
-    if (input$num_cars != "0") {
-      # Vehicle 1
-      if (!is.null(input$sa_car1_decision)) {
-        # if (input$sa_car1_decision == "Keep this vehicle" && !is.null(input$sa_car1_keep_mileage)) {
-        #   total_cost <- total_cost + vehicle_monthly_cost_new(input$car1_fuel, input$sa_car1_keep_mileage)
-        if (input$sa_car1_decision == "Keep this vehicle") {
-            total_cost <- total_cost + vehicle_monthly_cost_new(input$car1_fuel, input$car1_mileage)
-          
-        } else if (input$sa_car1_decision == "Replace this vehicle") {
-          if (!is.null(input$sa_car1_replace_fuel)) {
-            total_cost <- total_cost + vehicle_monthly_cost_new(input$sa_car1_replace_fuel, input$sa_car1_replace_mileage)
-          }
-        }
-        # If "Remove this vehicle", add nothing
-      }
+      req(input$sa_0_car_decision)
+      total_cost <- switch(input$sa_0_car_decision,
+                           "add_pt" = 50,
+                           "add_carshare" = 25,
+                           "no_changes" = 0,
+                           0
+      )
+    } else { # Handle households with 1+ cars
+      # Iterate through each potential vehicle
+      num_vehicles <- switch(input$num_cars, "1" = 1, "2" = 2, "3" = 3, "4+" = 4)
       
-      # Vehicle 2 (similar logic)
-      if (input$num_cars %in% c("2", "3", "4+") && !is.null(input$sa_car2_decision)) {
-        if (input$sa_car2_decision == "Keep this vehicle" && !is.null(input$sa_car2_keep_mileage)) {
-          total_cost <- total_cost + vehicle_monthly_cost_new(input$car2_fuel, input$sa_car2_keep_mileage)
-        } else if (input$sa_car2_decision == "Replace this vehicle") {
-          if (!is.null(input$sa_car2_replace_fuel)) {
-            total_cost <- total_cost + vehicle_monthly_cost_new(input$sa_car2_replace_fuel, input$sa_car2_replace_mileage)
-          }
-        }
-      }
-      
-      # Vehicle 3
-      if (input$num_cars %in% c("3", "4+") && !is.null(input$sa_car3_decision)) {
-        if (input$sa_car3_decision == "Keep this vehicle" && !is.null(input$sa_car3_keep_mileage)) {
-          total_cost <- total_cost + vehicle_monthly_cost_new(input$car3_fuel, input$sa_car3_keep_mileage)
-        } else if (input$sa_car3_decision == "Replace this vehicle") {
-          if (!is.null(input$sa_car3_replace_fuel)) {
-            total_cost <- total_cost + vehicle_monthly_cost_new(input$sa_car3_replace_fuel, input$sa_car3_replace_mileage)
-          }
-        }
-      }
-      
-      # Vehicle 4
-      if (input$num_cars == "4+" && !is.null(input$sa_car4_decision)) {
-        if (input$sa_car4_decision == "Keep this vehicle" && !is.null(input$sa_car4_keep_mileage)) {
-          total_cost <- total_cost + vehicle_monthly_cost_new(input$car4_fuel, input$sa_car4_keep_mileage)
-        } else if (input$sa_car4_decision == "Replace this vehicle") {
-          if (!is.null(input$sa_car4_replace_fuel)) {
-            total_cost <- total_cost + vehicle_monthly_cost_new(input$sa_car4_replace_fuel, input$sa_car4_replace_mileage)
-          }
+      for (i in 1:num_vehicles) {
+        decision_id <- paste0("sa_car", i, "_decision")
+        decision <- input[[decision_id]]
+        
+        if (!is.null(decision)) {
+          cost_to_add <- switch(decision,
+                                "Keep this vehicle" = {
+                                  # NOTE: The slider `sa_carX_usage_change` is not tied to a mileage bracket.
+                                  # This calculation assumes mileage does not change for a "kept" vehicle.
+                                  # This is a potential area for future refinement.
+                                  vehicle_monthly_cost_new(input[[paste0("car", i, "_fuel")]], input[[paste0("car", i, "_mileage")]])
+                                },
+                                "Replace this vehicle" = {
+                                  replace_fuel <- input[[paste0("sa_car", i, "_replace_fuel")]]
+                                  replace_mileage <- input[[paste0("sa_car", i, "_replace_mileage")]]
+                                  req(replace_fuel, replace_mileage) # Ensure inputs are available
+                                  vehicle_monthly_cost_new(replace_fuel, replace_mileage)
+                                },
+                                "Remove and use PT" = 50,
+                                "Remove and use Car-sharing" = 25,
+                                0 # Default case if no decision matches
+          )
+          total_cost <- total_cost + cost_to_add
         }
       }
     }
     
-    # Add new travel options costs
-    # Check various "add options" inputs
-    add_options_sources <- c(
-      input$sa_car1_keep_add_options,
-      input$sa_car2_keep_add_options,
-      input$sa_0_car_add_options
-    )
-    
-    if (any(grepl("Leeds Travel Pass", add_options_sources, ignore.case = TRUE))) {
-      total_cost <- total_cost + 50
-    }
-    
-    if (any(grepl("INFUZE_TRIAL", add_options_sources, ignore.case = TRUE))) {
-      total_cost <- total_cost + 25 # Assume £25/month average usage
-    }
-    
-    # Additional owned vehicles
-    if (any(grepl("ADDITIONAL owned vehicle", add_options_sources, ignore.case = TRUE))) {
-      # Add cost for additional vehicle (use car1 add details if available)
-      if (!is.null(input$sa_car1_add_fuel)) {
-        total_cost <- total_cost + vehicle_monthly_cost_new(input$sa_car1_add_fuel, input$sa_car1_add_mileage)
-      }
-    }
-    
-    # Add public transport costs
-    pt_cost <- switch(input$pt_spend,
-                      "£0" = 0,
-                      "£1-£30" = 15,
-                      "£31-£60" = 45,
-                      "£61-£100" = 80,
-                      "More than £100" = 120,
-                      0
-    )
-    
-    total_cost <- total_cost + pt_cost
+    # The new total cost is based *only* on the choices made in the SA experiment.
+    # We no longer add previous PT/car-share costs on top.
     
     return(round(total_cost, 2))
   })
   
   # Add these output renderers to your server.R:
   output$current_monthly_formatted <- renderText({
-    format(current_monthly_cost(), big.mark = ",", nsmall = 2)
+    cost <- current_monthly_cost()
+    req(cost)
+    format(cost, big.mark = ",", nsmall = 2)
   })
   
   output$current_annual_formatted <- renderText({
-    format(current_monthly_cost() * 12, big.mark = ",", nsmall = 2)
+    cost <- current_monthly_cost()
+    req(cost)
+    format(cost * 12, big.mark = ",", nsmall = 2)
   })
   
   output$new_monthly_formatted <- renderText({
-    format(new_monthly_cost(), big.mark = ",", nsmall = 2)
+    cost <- new_monthly_cost()
+    req(cost)
+    format(cost, big.mark = ",", nsmall = 2)
   })
   
   output$new_annual_formatted <- renderText({
-    format(new_monthly_cost() * 12, big.mark = ",", nsmall = 2)
+    cost <- new_monthly_cost()
+    req(cost)
+    format(cost * 12, big.mark = ",", nsmall = 2)
   })
   
   output$monthly_change <- renderText({
-    change <- new_monthly_cost() - current_monthly_cost()
-    percentage <- round((change / current_monthly_cost()) * 100, 1)
+    new_cost <- new_monthly_cost()
+    current_cost <- current_monthly_cost()
+    req(new_cost, current_cost)
+    
+    # Avoid division by zero
+    if (current_cost == 0 && new_cost > 0) return(paste0("+£", format(new_cost, nsmall = 2), ", +Inf%"))
+    if (current_cost == 0 && new_cost == 0) return("£0.00, 0.0%")
+    
+    change <- new_cost - current_cost
+    percentage <- round((change / current_cost) * 100, 1)
     sign <- if(change >= 0) "+" else ""
     paste0(sign, "£", format(abs(change), big.mark = ",", nsmall = 2), ", ", sign, percentage, "%")
   })
   
   output$annual_change <- renderText({
-    change <- (new_monthly_cost() * 12) - (current_monthly_cost() * 12)
-    percentage <- round((change / (current_monthly_cost() * 12)) * 100, 1)
+    new_cost <- new_monthly_cost() * 12
+    current_cost <- current_monthly_cost() * 12
+    req(new_cost, current_cost)
+    
+    # Avoid division by zero
+    if (current_cost == 0 && new_cost > 0) return(paste0("+£", format(new_cost, nsmall = 2), ", +Inf%"))
+    if (current_cost == 0 && new_cost == 0) return("£0.00, 0.0%")
+    
+    change <- new_cost - current_cost
+    percentage <- round((change / current_cost) * 100, 1)
     sign <- if(change >= 0) "+" else ""
     paste0(sign, "£", format(abs(change), big.mark = ",", nsmall = 2), ", ", sign, percentage, "%")
   })
-  
   
   # ========= SA VERSION LATEST =========
   output$sa_ui_placeholder <- renderUI({
