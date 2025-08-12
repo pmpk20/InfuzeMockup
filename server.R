@@ -1,6 +1,8 @@
-# server.R (Version 14.1 - Fully Functional Nested UI)
+# server.R (Version 14.2 - With Collapsible DCE Panels)
 
 library(shiny)
+library(shinyBS) # Ensure shinyBS is loaded
+library(bslib)   # Ensure bslib is loaded
 
 # Define the server logic
 function(input, output, session) {
@@ -29,12 +31,12 @@ function(input, output, session) {
   observeEvent(input$to_sa_button, {
     updateTabsetPanel(session, "main_tabs", selected = "sa_panel")
   })
-    observeEvent(input$to_sa_button2, {
+  observeEvent(input$to_sa_button2, {
     updateTabsetPanel(session, "main_tabs", selected = "sa_panel_2")
   })
   observeEvent(input$to_sa_button3, {
-      updateTabsetPanel(session, "main_tabs", selected = "sa_panel_3")
-    })
+    updateTabsetPanel(session, "main_tabs", selected = "sa_panel_3")
+  })
   observeEvent(input$to_sa_button4, {
     updateTabsetPanel(session, "main_tabs", selected = "sa_panel_4")
   })
@@ -44,10 +46,6 @@ function(input, output, session) {
   observeEvent(input$to_Attitudes_button, {
     updateTabsetPanel(session, "main_tabs", selected = "AttitudesPage")
   })
-  
-  
-  
-  
   
   # ===================================================================
   # ========= DYNAMIC HOUSEHOLD COMPOSITION LOGIC =====================
@@ -108,8 +106,6 @@ function(input, output, session) {
     
   })
   
-  
-  
   # ========= COST CALCULATIONS (Move to main server scope) =========
   
   # Current monthly cost (X) - based on Step 2 choices
@@ -121,54 +117,29 @@ function(input, output, session) {
     # Basic vehicle running costs (fuel + insurance + maintenance per month)
     vehicle_monthly_cost <- function(fuel_type, mileage_bracket) {
       base_costs <- list(
-        "Petrol" = 150,
-        "Diesel" = 160,
-        "Fully Electric" = 80,
-        "Plug-in Hybrid" = 120
+        "Petrol" = 150, "Diesel" = 160,
+        "Fully Electric" = 80, "Plug-in Hybrid" = 120
       )
-      
       mileage_multiplier <- switch(mileage_bracket,
-                                   "0-2,000" = 0.6,
-                                   "2,001-5,000" = 1.0,
-                                   "5,001 - 10,000" = 1.5,
-                                   "10,001+" = 2.2
-      )
-      
+                                   "0-2,000" = 0.6, "2,001-5,000" = 1.0,
+                                   "5,001 - 10,000" = 1.5, "10,001+" = 2.2 )
       return(base_costs[[fuel_type]] * mileage_multiplier)
     }
     
-    # Add costs for each vehicle
     if (input$num_cars != "0") {
-      if (!is.null(input$car1_fuel)) {
-        total_cost <- total_cost + vehicle_monthly_cost(input$car1_fuel, input$car1_mileage)
-      }
-      
-      if (input$num_cars %in% c("2", "3", "4+") && !is.null(input$car2_fuel)) {
-        total_cost <- total_cost + vehicle_monthly_cost(input$car2_fuel, input$car2_mileage)
-      }
-      
-      if (input$num_cars %in% c("3", "4+") && !is.null(input$car3_fuel)) {
-        total_cost <- total_cost + vehicle_monthly_cost(input$car3_fuel, input$car3_mileage)
-      }
-      
-      if (input$num_cars == "4+" && !is.null(input$car4_fuel)) {
-        total_cost <- total_cost + vehicle_monthly_cost(input$car4_fuel, input$car4_mileage)
+      num_vehicles <- switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4)
+      for(i in 1:num_vehicles){
+        if(!is.null(input[[paste0("car", i, "_fuel")]])) {
+          total_cost <- total_cost + vehicle_monthly_cost(input[[paste0("car", i, "_fuel")]], input[[paste0("car", i, "_mileage")]])
+        }
       }
     }
     
-    # Add public transport costs
     pt_cost <- switch(input$pt_spend,
-                      "£0" = 0,
-                      "£1-£30" = 15,
-                      "£31-£60" = 45,
-                      "£61-£100" = 80,
-                      "More than £100" = 120,
-                      0
-    )
-    
+                      "£0" = 0, "£1-£30" = 15, "£31-£60" = 45,
+                      "£61-£100" = 80, "More than £100" = 120, 0 )
     total_cost <- total_cost + pt_cost
     
-    # Add car sharing costs (assume £20/month if member)
     if (!is.null(input$car_share_member) && input$car_share_member == "Yes") {
       total_cost <- total_cost + 20
     }
@@ -177,156 +148,100 @@ function(input, output, session) {
   })
   
   # New monthly cost (Z) - based on Step 4 adaptation choices
-  # *** REVISED LOGIC FOR CLARITY AND ACCURACY ***
   new_monthly_cost <- reactive({
-    req(input$num_cars)
+    req(input$num_cars, input$main_tabs) # Depend on the active tab
     
     total_cost <- 0
     
-    # Enhanced vehicle costs with scenario price increases
     vehicle_monthly_cost_new <- function(fuel_type, mileage_bracket) {
-      # Base costs with fuel price increase (+60p/litre ≈ +25% for petrol/diesel)
-      base_costs <- list(
-        "Petrol" = 150 * 1.25,
-        "Diesel" = 160 * 1.25,
-        "Fully Electric" = 80, # No fuel price increase
-        "Plug-in Hybrid" = 120 * 1.15 # Partial increase
-      )
-      
-      # Parking permit increase (+20%)
-      parking_increase <- switch(mileage_bracket,
-                                 "0-2,000" = 5,
-                                 "2,001-5,000" = 10,
-                                 "5,001 - 10,000" = 15,
-                                 "10,001+" = 20
-      )
-      
-      mileage_multiplier <- switch(mileage_bracket,
-                                   "0-2,000" = 0.6,
-                                   "2,001-5,000" = 1.0,
-                                   "5,001 - 10,000" = 1.5,
-                                   "10,001+" = 2.2
-      )
-      
-      return((base_costs[[fuel_type]] * mileage_multiplier) + (parking_increase * 1.20))
+      base_costs <- list("Petrol" = 150*1.25, "Diesel" = 160*1.25, "Fully Electric" = 80, "Plug-in Hybrid" = 120*1.15)
+      parking <- switch(mileage_bracket, "0-2,000"=5, "2,001-5,000"=10, "5,001-10,000"=15, "10,001+"=20, 0)
+      multiplier <- switch(mileage_bracket, "0-2,000"=0.6, "2,001-5,000"=1.0, "5,001-10,000"=1.5, "10,001+"=2.2, 1)
+      return((base_costs[[fuel_type]] * multiplier) + (parking * 1.20))
     }
     
-    # Handle zero-car households
-    if (input$num_cars == "0") {
-      req(input$sa_0_car_decision)
-      total_cost <- switch(input$sa_0_car_decision,
-                           "add_pt" = 50,
-                           "add_carshare" = 25,
-                           "no_changes" = 0,
-                           0
-      )
-    } else { # Handle households with 1+ cars
-      # Iterate through each potential vehicle
-      num_vehicles <- switch(input$num_cars, "1" = 1, "2" = 2, "3" = 3, "4+" = 4)
-      
-      for (i in 1:num_vehicles) {
-        decision_id <- paste0("sa_car", i, "_decision")
-        decision <- input[[decision_id]]
-        
-        if (!is.null(decision)) {
-          cost_to_add <- switch(decision,
-                                "Keep this vehicle" = {
-                                  # NOTE: The slider `sa_carX_usage_change` is not tied to a mileage bracket.
-                                  # This calculation assumes mileage does not change for a "kept" vehicle.
-                                  # This is a potential area for future refinement.
-                                  vehicle_monthly_cost_new(input[[paste0("car", i, "_fuel")]], input[[paste0("car", i, "_mileage")]])
-                                },
-                                "Replace this vehicle" = {
-                                  replace_fuel <- input[[paste0("sa_car", i, "_replace_fuel")]]
-                                  replace_mileage <- input[[paste0("sa_car", i, "_replace_mileage")]]
-                                  req(replace_fuel, replace_mileage) # Ensure inputs are available
-                                  vehicle_monthly_cost_new(replace_fuel, replace_mileage)
-                                },
-                                "Remove and use PT" = 50,
-                                "Remove and use Car-sharing" = 25,
-                                0 # Default case if no decision matches
-          )
-          total_cost <- total_cost + cost_to_add
+    # Logic for the four-column SA page
+    if (input$main_tabs == "sa_panel") {
+      if (input$num_cars == "0") {
+        if(!is.null(input$sa_0_car_decision)) {
+          total_cost <- switch(input$sa_0_car_decision, "add_pt"=50, "add_carshare"=25, "no_changes"=0, 0)
+        }
+      } else {
+        num_vehicles <- switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4)
+        for (i in 1:num_vehicles) {
+          decision <- input[[paste0("sa_car", i, "_decision")]]
+          if (!is.null(decision)) {
+            cost_to_add <- switch(decision,
+                                  "Keep this vehicle" = { vehicle_monthly_cost_new(input[[paste0("car", i, "_fuel")]], input[[paste0("car", i, "_mileage")]]) },
+                                  "Replace this vehicle" = {
+                                    req(input[[paste0("sa_car", i, "_replace_fuel")]], input[[paste0("sa_car", i, "_replace_mileage")]])
+                                    vehicle_monthly_cost_new(input[[paste0("sa_car", i, "_replace_fuel")]], input[[paste0("sa_car", i, "_replace_mileage")]])
+                                  },
+                                  "Remove and use PT" = 50,
+                                  "Remove and use Car-sharing" = 25,
+                                  0
+            )
+            total_cost <- total_cost + cost_to_add
+          }
+        }
+      }
+    } 
+    # Logic for the DCE page
+    else if (input$main_tabs == "sa_panel_4") {
+      if (input$num_cars != "0") {
+        num_vehicles <- switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4)
+        for (i in 1:num_vehicles) {
+          decision <- input[[paste0("sa_car", i, "_decision")]]
+          if (!is.null(decision)) {
+            current_cost_new <- vehicle_monthly_cost_new(input[[paste0("car", i, "_fuel")]], input[[paste0("car", i, "_mileage")]])
+            cost_for_this_car <- switch(decision,
+                                        "Status Quo" = current_cost_new,
+                                        "Modernise" = 165,
+                                        "Car-Lite" = current_cost_new + 25,
+                                        "Car-Free" = 120,
+                                        0
+            )
+            total_cost <- total_cost + cost_for_this_car
+          }
         }
       }
     }
-    
-    # The new total cost is based *only* on the choices made in the SA experiment.
-    # We no longer add previous PT/car-share costs on top.
+    # Add other 'else if' blocks for sa_panel_2, sa_panel_3 if needed
     
     return(round(total_cost, 2))
   })
   
-  # Add these output renderers to your server.R:
-  output$current_monthly_formatted <- renderText({
-    cost <- current_monthly_cost()
-    req(cost)
-    format(cost, big.mark = ",", nsmall = 2)
-  })
-  
-  output$current_annual_formatted <- renderText({
-    cost <- current_monthly_cost()
-    req(cost)
-    format(cost * 12, big.mark = ",", nsmall = 2)
-  })
-  
-  output$new_monthly_formatted <- renderText({
-    cost <- new_monthly_cost()
-    req(cost)
-    format(cost, big.mark = ",", nsmall = 2)
-  })
-  
-  output$new_annual_formatted <- renderText({
-    cost <- new_monthly_cost()
-    req(cost)
-    format(cost * 12, big.mark = ",", nsmall = 2)
-  })
-  
+  # Cost Output Renderers
+  output$current_monthly_formatted <- renderText({ format(current_monthly_cost(), nsmall = 2) })
+  output$current_annual_formatted <- renderText({ format(current_monthly_cost() * 12, nsmall = 2) })
+  output$new_monthly_formatted <- renderText({ format(new_monthly_cost(), nsmall = 2) })
+  output$new_annual_formatted <- renderText({ format(new_monthly_cost() * 12, nsmall = 2) })
   output$monthly_change <- renderText({
-    new_cost <- new_monthly_cost()
-    current_cost <- current_monthly_cost()
-    req(new_cost, current_cost)
-    
-    # Avoid division by zero
-    if (current_cost == 0 && new_cost > 0) return(paste0("+£", format(new_cost, nsmall = 2), ", +Inf%"))
-    if (current_cost == 0 && new_cost == 0) return("£0.00, 0.0%")
-    
-    change <- new_cost - current_cost
-    percentage <- round((change / current_cost) * 100, 1)
+    new <- new_monthly_cost(); current <- current_monthly_cost()
+    req(new, current); if(current==0) return("")
+    change <- new - current; pct <- round((change/current)*100, 1)
     sign <- if(change >= 0) "+" else ""
-    paste0(sign, "£", format(abs(change), big.mark = ",", nsmall = 2), ", ", sign, percentage, "%")
+    paste0(" (", sign, "£", format(abs(change), nsmall=2), ", ", sign, pct, "%)")
   })
-  
   output$annual_change <- renderText({
-    new_cost <- new_monthly_cost() * 12
-    current_cost <- current_monthly_cost() * 12
-    req(new_cost, current_cost)
-    
-    # Avoid division by zero
-    if (current_cost == 0 && new_cost > 0) return(paste0("+£", format(new_cost, nsmall = 2), ", +Inf%"))
-    if (current_cost == 0 && new_cost == 0) return("£0.00, 0.0%")
-    
-    change <- new_cost - current_cost
-    percentage <- round((change / current_cost) * 100, 1)
+    new <- new_monthly_cost()*12; current <- current_monthly_cost()*12
+    req(new, current); if(current==0) return("")
+    change <- new - current; pct <- round((change/current)*100, 1)
     sign <- if(change >= 0) "+" else ""
-    paste0(sign, "£", format(abs(change), big.mark = ",", nsmall = 2), ", ", sign, percentage, "%")
+    paste0(" (", sign, "£", format(abs(change), nsmall=2), ", ", sign, pct, "%)")
   })
   
   #  ========= SA VERSION LATEST (with shinyBS collapsible panels for ALL users) =========
   output$sa_ui_placeholder <- renderUI({
     
-    # Gatekeeper
     req(input$num_cars)
     if (input$num_cars != "0") {
       req(input$car1_type, input$car1_fuel, input$car1_mileage)
     }
     
-    # --- UI Components ---
     main_question <- h3("How would you adapt your household's travel options?")
     
-    # --- Helper function for CAR-OWNING households ---
     create_vehicle_adaptation_block <- function(car_number, vehicle_type, fuel_type, mileage_val) {
-      
       decision_id <- paste0("sa_car", car_number, "_decision")
       replace_fuel_id <- paste0("sa_car", car_number, "_replace_fuel")
       replace_mileage_id <- paste0("sa_car", car_number, "_replace_mileage")
@@ -371,13 +286,13 @@ function(input, output, session) {
                 )
               ),
               tags$tbody(
-                tags$tr( # Cost row
+                tags$tr(
                   tags$td(style="text-align: center; background-color: #f8d7da; font-weight: bold;", paste0("£", current_cost, "/month")),
                   tags$td(style="text-align: center; background-color: #d4edda; font-weight: bold;", textOutput(paste0("sa_car", car_number, "_replace_cost"), inline = TRUE)),
                   tags$td(style="text-align: center; background-color: #cce7ff; font-weight: bold;", "£50/month"),
                   tags$td(style="text-align: center; background-color: #fff3cd; font-weight: bold;", "£25/month")
                 ),
-                tags$tr( # Input row
+                tags$tr(
                   tags$td(style="background-color: #fce8e8; text-align:center; vertical-align:middle;", p("Continue using this vehicle as is.")),
                   tags$td(style = "background-color: #e8f5e8;",
                           selectInput(paste0("sa_car", car_number, "_replace_type"), "Type:", choices = c("Car", "Van", "Motorbike")),
@@ -387,7 +302,7 @@ function(input, output, session) {
                   tags$td(style="background-color: #e6f3ff; text-align:center; vertical-align:middle;", p("Dispose of this vehicle and get a 'Leeds Travel Pass'.")),
                   tags$td(style="background-color: #fff9e6; text-align:center; vertical-align:middle;", p("Dispose of this vehicle and join 'INFUZE_TRIAL' car-sharing."))
                 ),
-                tags$tr( # Radio button row
+                tags$tr(
                   tags$td(style = "text-align: center; background-color: #f8d7da;", radioButtons(decision_id, NULL, choices = "Keep this vehicle", selected = character(0))),
                   tags$td(style = "text-align: center; background-color: #d4edda;", radioButtons(decision_id, NULL, choices = "Replace this vehicle", selected = character(0))),
                   tags$td(style = "text-align: center; background-color: #cce7ff;", radioButtons(decision_id, NULL, choices = "Remove and use PT", selected = character(0))),
@@ -400,11 +315,10 @@ function(input, output, session) {
       )
     }
     
-    # --- NEW: Helper function for ZERO-CAR households ---
     create_zero_car_adaptation_block <- function() {
       bsCollapse(
         id = "sa_collapse_0",
-        open = "sa_panel_0", # Always open by default for these users
+        open = "sa_panel_0",
         bsCollapsePanel(
           title = "Decision for Your Household (No Currently Owned Vehicles)",
           value = "sa_panel_0",
@@ -460,7 +374,6 @@ function(input, output, session) {
       )
     }
     
-    # --- Assemble the UI ---
     scenario_and_costs_table <- wellPanel(
       style = "background-color: white; border: 2px solid black;",
       tags$table(
@@ -480,11 +393,11 @@ function(input, output, session) {
           ),
           tags$tr(
             tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Public Transport: "), "A new 'Leeds Travel Pass' for £50/month"),
-            tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Estimated new monthly cost: £"), textOutput("new_monthly_formatted", inline=TRUE), " (", textOutput("monthly_change", inline=TRUE), ")")
+            tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Estimated new monthly cost: £"), textOutput("new_monthly_formatted", inline=TRUE), textOutput("monthly_change", inline=TRUE))
           ),
           tags$tr(
             tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Car Club: "), "New sharing models available"),
-            tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Estimated new annual cost: £"), textOutput("new_annual_formatted", inline=TRUE), " (", textOutput("annual_change", inline=TRUE), ")")
+            tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Estimated new annual cost: £"), textOutput("new_annual_formatted", inline=TRUE), textOutput("annual_change", inline=TRUE))
           )
         )
       )
@@ -493,10 +406,8 @@ function(input, output, session) {
     ui_to_render <- list(scenario_and_costs_table, main_question)
     
     if (input$num_cars == "0") {
-      # Call the new collapsible block function for zero-car users
       ui_to_render <- append(ui_to_render, list(create_zero_car_adaptation_block()))
     } else {
-      # Loop and call the collapsible block function for each car
       num_vehicles <- switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4)
       for (i in 1:num_vehicles) {
         if (!is.null(input[[paste0("car", i, "_type")]])) {
@@ -511,8 +422,6 @@ function(input, output, session) {
     do.call(tagList, ui_to_render)
     
   })
-  
-
   
   # ========= MOCKUP VERSION 2 =========
   output$sa_ui_placeholder2 <- renderUI({
@@ -592,122 +501,122 @@ function(input, output, session) {
       
       wellPanel(
         style = "background-color: white; border: 2px solid white;",
-
+        
         # h4(vehicle_description),
-
+        
         # h4(paste0("Vehicle ", car_number)),
         vehicle_description,
-
+        
         div(style = "border: 1px solid white; padding: 15px; margin: 10px 0;",
             h5("Please choose your preferred option:", style = "margin-bottom: 20px;"),
-        
-        # DCE alternatives in a grid layout
+            
+            # DCE alternatives in a grid layout
             fluidRow(
-
+              
               # **********************************************************************************************
               #### Alternative A: Keep current vehicle ####
               column(2,
                      wellPanel(
                        style = "text-align: center; background-color: #f8f9fa; border: 2px solid black;",
-
+                       
                        h6("A: Keep Current Vehicle", style = "font-weight: bold;"),
-
+                       
                        hr(style = "margin: 10px 0;"),
-
+                       
                        p("Vehicle: ", paste0("My current vehicle"),
                          style = "margin: 5px 0; font-size: 12px;"),
-
+                       
                        p("Time: ", paste0("search time to park"),
                          style = "margin: 5px 0; font-size: 12px;"),
-
+                       
                        p(paste0("Monthly cost: £", current_cost),
                          style = "margin: 5px 0; font-size: 12px;"),
-
+                       
                        radioButtons(width = "100%",
-                         paste0(decision_id, "_choice"),
-                         "",
-                         choices = c("I would choose this option" = "keep"),
-                         selected = character(0)
+                                    paste0(decision_id, "_choice"),
+                                    "",
+                                    choices = c("I would choose this option" = "keep"),
+                                    selected = character(0)
                        )
                      )
               ),
-
-
+              
+              
               # **********************************************************************************************
               #### Alternative B: New vehicle ####
               column(2,
                      wellPanel(
                        style = "text-align: center; background-color: #f8f9fa; border: 2px solid black;",
-
+                       
                        h6("B: Replace with Electric", style = "font-weight: bold;"),
-
+                       
                        hr(style = "margin: 10px 0;"),
-
+                       
                        p(paste0("Vehicle: Electric ", vehicle_type),
                          style = "margin: 5px 0; font-size: 12px;"),
-
+                       
                        p("Time: ", paste0("search time to park and charge"),
                          style = "margin: 5px 0; font-size: 12px;"),
-
+                       
                        p(paste0("Monthly cost: £", electric_cost),
                          style = "margin: 5px 0; font-size: 12px;"),
-
+                       
                        radioButtons(width = "100%",
                                     paste0(decision_id, "_choice"), "",
                                     choices = c("I would choose this option" = "replace_electric"),
                                     selected = character(0))
                      )
               ),
-
-        
-        # **********************************************************************************************
+              
+              
+              # **********************************************************************************************
               #### Alternative C: PT #### 
               column(2,
                      wellPanel(
                        style = "text-align: center; background-color: #f8f9fa; border: 2px solid black;",
-
+                       
                        h6("C: Use Public Transport",
                           style = "font-weight: bold;"),
-
+                       
                        hr(style = "margin: 10px 0;"),
                        p("Service: Leeds Public Transport",
                          style = "margin: 5px 0; font-size: 12px;"),
-
+                       
                        p("Time: ", paste0("waiting for it to arrive"),
                          style = "margin: 5px 0; font-size: 12px;"),
-
+                       
                        p(paste0("Monthly cost: £",
                                 carshare_cost, "*"),
                          style = "margin: 5px 0; font-size: 12px;"),
-
+                       
                        radioButtons(width = "100%",
                                     paste0(decision_id, "_choice"), "",
                                     choices = c("I would choose this option" = "carshare"),
                                     selected = character(0))
                      )
               ),
-        
-        
+              
+              
               # **********************************************************************************************
               #### Alternative D: Car sharing #### 
               column(2,
                      wellPanel(
                        style = "text-align: center; background-color: #f8f9fa; border: 2px solid black;",
-
+                       
                        h6("D: Switch to Car-Sharing",
                           style = "font-weight: bold;"),
-
+                       
                        hr(style = "margin: 10px 0;"),
                        p("Service: INFUZE_TRIAL",
                          style = "margin: 5px 0; font-size: 12px;"),
-
+                       
                        p("Time: ", paste0("wait for parking and to return the vehicle"),
                          style = "margin: 5px 0; font-size: 12px;"),
-
+                       
                        p(paste0("Monthly cost: £",
                                 carshare_cost, "*"),
                          style = "margin: 5px 0; font-size: 12px;"),
-
+                       
                        radioButtons(width = "100%",
                                     paste0(decision_id, "_choice"), "",
                                     choices = c("I would choose this option" = "carshare"),
@@ -715,9 +624,9 @@ function(input, output, session) {
                      )
               )
             ),
-
+            
         ),
-      
+        
         
         # Conditional panels for additional details (simplified)
         conditionalPanel(
@@ -889,7 +798,7 @@ function(input, output, session) {
     ui_to_render <- append(ui_to_render, 
                            list(hr(), 
                                 actionButton("to_sa_button3", "Version 3", 
-                                # actionButton("to_summary_button", "See summary", 
+                                             # actionButton("to_summary_button", "See summary", 
                                              class = "btn-success btn-lg")))
     # ui_to_render <- append(ui_to_render, list(hr(), cost_box, hr(), actionButton("to_summary_button", "I have decided, see summary", class = "btn-success btn-lg")))
     
@@ -1081,14 +990,15 @@ function(input, output, session) {
   
   
   # ========= SA VERSION NEW (DCE Format) =========
+  # ========= SA VERSION NEW (DCE Format) - CORRECTED & COMPLETE =========
   output$sa_ui_placeholder4 <- renderUI({
     
-    # Gatekeeper
     req(input$num_cars)
     if (input$num_cars != "0") {
       req(input$car1_type, input$car1_fuel, input$car1_mileage)
     }
-    # --- Helper function to create the DCE choice task for ONE vehicle ---
+    
+    # --- Helper function for CAR-OWNING households ---
     create_vehicle_adaptation_block <- function(car_number, vehicle_type, fuel_type, mileage_val) {
       
       decision_id <- paste0("sa_car", car_number, "_decision")
@@ -1128,7 +1038,7 @@ function(input, output, session) {
                 tags$td(class="col-status-quo", paste("Keep your", vehicle_desc_short)),
                 tags$td(class="col-modernise", "Replace with a Small EV"),
                 tags$td(class="col-carlite", paste("Keep your", vehicle_desc_short), " and add car-sharing"),
-                tags$td(class="col-carfree", paste("Replace your", vehicle_desc_short), " with car-sharing")
+                tags$td(class="col-carfree", "Dispose of vehicle and use car-sharing")
               ),
               tags$tr(
                 tags$td("Availability"),
@@ -1164,74 +1074,126 @@ function(input, output, session) {
       )
     }
     
+    # --- NEW: Helper function for ZERO-CAR households ---
+    create_zero_car_dce_block <- function() {
+      bsCollapse(
+        id = "sa_collapse_0", open = "sa_panel_0",
+        bsCollapsePanel(
+          title = "Choice Task for Your Household", value = "sa_panel_0", style = "info",
+          tags$table(
+            class = "table dce-table",
+            tags$thead(
+              tags$tr(
+                tags$th("Attribute", class = "col-attribute"),
+                tags$th("Option A: No Change", class = "col-status-quo"),
+                tags$th("Option B: Add Public Transport", class = "col-modernise"), # Re-using colors
+                tags$th("Option C: Add Car Sharing", class = "col-carlite")
+              )
+            ),
+            tags$tbody(
+              tags$tr(
+                tags$td("Primary Mode"),
+                tags$td(class="col-status-quo", "Current travel patterns"),
+                tags$td(class="col-modernise", "Leeds Travel Pass"),
+                tags$td(class="col-carlite", "INFUZE_TRIAL Car Sharing")
+              ),
+              tags$tr(
+                tags$td("Availability"),
+                tags$td(class="col-status-quo", "N/A"),
+                tags$td(class="col-modernise", "Scheduled"),
+                tags$td(class="col-carlite", "99%")
+              ),
+              tags$tr(
+                tags$td("Access Time"),
+                tags$td(class="col-status-quo", "N/A"),
+                tags$td(class="col-modernise", "5-minute walk to stop"),
+                tags$td(class="col-carlite", "5-minute walk to vehicle")
+              ),
+              tags$tr(
+                tags$td("Est. Monthly Cost"),
+                tags$td(class="col-status-quo", style="font-weight:bold;", "£0"),
+                tags$td(class="col-modernise", style="font-weight:bold;", "£50"),
+                tags$td(class="col-carlite", style="font-weight:bold;", "£25")
+              ),
+              tags$tr(
+                tags$td("Your Choice"),
+                tags$td(class="col-status-quo", radioButtons("sa4_0_car_decision", NULL, inline = TRUE, choices = "No changes", selected = character(0))),
+                tags$td(class="col-modernise", radioButtons("sa4_0_car_decision", NULL, inline = TRUE, choices = "Add PT", selected = character(0))),
+                tags$td(class="col-carlite", radioButtons("sa4_0_car_decision", NULL, inline = TRUE, choices = "Add Car-sharing", selected = character(0)))
+              )
+            )
+          )
+        )
+      )
+    }
+    
     # --- Assemble the UI ---
     tagList(
       tags$style(HTML("
-      .dce-table { border-collapse: separate; border-spacing: 0; width: 100%; }
-      .dce-table th, .dce-table td { text-align: center; vertical-align: middle !important; padding: 12px 8px !important; border-top: 1px solid #ddd; }
-      .dce-table thead th { color: white; font-size: 1.1em; border: none; }
-      .dce-table tbody td:first-child { text-align: left; font-weight: bold; background-color: #f8f9fa; }
-      .dce-table .radio { justify-content: center; display: flex; }
-      .radio .form-check-input { transform: scale(1.5); }
-      .col-attribute { background-color: #dc3545 !important; }
-      .col-status-quo { background-color: #007bff !important; }
-      .col-modernise { background-color: #28a745 !important; }
-      .col-carlite { background-color: #ffc107 !important; }
-      .col-carfree { background-color: #fd7e14 !important; color: #343a40 !important; }
-      .dce-table td.col-status-quo { background-color: #e6f0ff !important; }
-      .dce-table td.col-modernise { background-color: #eaf6ec !important; }
-      .dce-table td.col-carlite { background-color: #fff9e8 !important; }
-      .dce-table td.col-carfree { background-color: #fff2e8 !important; }
-    ")),
-    
-    # This is the cost/scenario box that is now fed by your main reactive logic
-    wellPanel(
-      style = "background-color: white; border: 2px solid black;",
-      tags$table(style = "width: 100%; border-collapse: collapse;",
-                 tags$thead(tags$tr(
-                   tags$th(style="border:1px solid #ddd; padding:8px; background-color:#f2f2f2; width:50%;", "Scenario Changes"),
-                   tags$th(style="border:1px solid #ddd; padding:8px; background-color:#f2f2f2; width:50%;", "Cost Estimates")
-                 )),
-                 tags$tbody(
-                   tags$tr(
-                     tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Fuel prices: "), "+60p per litre"),
-                     tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Current monthly cost: £"), textOutput("current_monthly_formatted", inline=TRUE))
-                   ),
-                   tags$tr(
-                     tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Parking permit costs: "), "+20%"),
-                     tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Current annual cost: £"), textOutput("current_annual_formatted", inline=TRUE))
-                   ),
-                   tags$tr(
-                     tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Public Transport: "), "A new 'Leeds Travel Pass' for £50/month"),
-                     tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Estimated new monthly cost: £"), textOutput("new_monthly_formatted", inline=TRUE), " (", textOutput("monthly_change", inline=TRUE), ")")
-                   ),
-                   tags$tr(
-                     tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Car Club: "), "New sharing models available"),
-                     tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Estimated new annual cost: £"), textOutput("new_annual_formatted", inline=TRUE), " (", textOutput("annual_change", inline=TRUE), ")")
+        .dce-table { border-collapse: separate; border-spacing: 0; width: 100%; }
+        .dce-table th, .dce-table td { text-align: center; vertical-align: middle !important; padding: 12px 8px !important; border-top: 1px solid #ddd; }
+        .dce-table thead th { color: white; font-size: 1.1em; border: none; }
+        .dce-table tbody td:first-child { text-align: left; font-weight: bold; background-color: #f8f9fa; }
+        .dce-table .radio { justify-content: center; display: flex; }
+        .radio .form-check-input { transform: scale(1.5); }
+        .col-attribute { background-color: #dc3545 !important; }
+        .col-status-quo { background-color: #007bff !important; }
+        .col-modernise { background-color: #28a745 !important; }
+        .col-carlite { background-color: #ffc107 !important; }
+        .col-carfree { background-color: #fd7e14 !important; color: #343a40 !important; }
+        .dce-table td.col-status-quo { background-color: #e6f0ff !important; }
+        .dce-table td.col-modernise { background-color: #eaf6ec !important; }
+        .dce-table td.col-carlite { background-color: #fff9e8 !important; }
+        .dce-table td.col-carfree { background-color: #fff2e8 !important; }
+      ")),
+      
+      wellPanel(
+        style = "background-color: white; border: 2px solid black;",
+        tags$table(style = "width: 100%; border-collapse: collapse;",
+                   tags$thead(tags$tr(
+                     tags$th(style="border:1px solid #ddd; padding:8px; background-color:#f2f2f2; width:50%;", "Scenario Changes"),
+                     tags$th(style="border:1px solid #ddd; padding:8px; background-color:#f2f2f2; width:50%;", "Cost Estimates")
+                   )),
+                   tags$tbody(
+                     tags$tr(
+                       tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Fuel prices: "), "+60p per litre"),
+                       tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Current monthly cost: £"), textOutput("current_monthly_formatted", inline=TRUE))
+                     ),
+                     tags$tr(
+                       tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Parking permit costs: "), "+20%"),
+                       tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Current annual cost: £"), textOutput("current_annual_formatted", inline=TRUE))
+                     ),
+                     tags$tr(
+                       tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Public Transport: "), "A new 'Leeds Travel Pass' for £50/month"),
+                       tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Estimated new monthly cost: £"), textOutput("new_monthly_formatted", inline=TRUE), textOutput("monthly_change", inline=TRUE))
+                     ),
+                     tags$tr(
+                       tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Car Club: "), "New sharing models available"),
+                       tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Estimated new annual cost: £"), textOutput("new_annual_formatted", inline=TRUE), textOutput("annual_change", inline=TRUE))
+                     )
                    )
-                 )
-      )
-    ),
-    
-    h3("Please choose the package you prefer most for each of your vehicles"),
-    
-    if (input$num_cars == "0") {
-      p("As a zero-car household, a different set of choices will be presented here.")
-    } else {
-      lapply(1:switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4), function(i) {
-        if (!is.null(input[[paste0("car", i, "_type")]])) {
-          create_vehicle_adaptation_block(i, input[[paste0("car", i, "_type")]], 
-                                          input[[paste0("car", i, "_fuel")]], 
-                                          input[[paste0("car", i, "_mileage")]])
-        }
-      })
-    },
-    
-    hr(), 
-    actionButton("to_sa_button2", "Continue", class = "btn-success btn-lg")
+        )
+      ),
+      
+      h3("Please choose the package you prefer most for each of your vehicles"),
+      
+      if (input$num_cars == "0") {
+        create_zero_car_dce_block() # Call the new zero-car function
+      } else {
+        lapply(1:switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4), function(i) {
+          if (!is.null(input[[paste0("car", i, "_type")]])) {
+            create_vehicle_adaptation_block(i, input[[paste0("car", i, "_type")]], 
+                                            input[[paste0("car", i, "_fuel")]], 
+                                            input[[paste0("car", i, "_mileage")]])
+          }
+        })
+      },
+      
+      hr(), 
+      actionButton("to_summary_button", "Continue", class = "btn-success btn-lg")
     )
-    
   })
+    
   
   
   # **********************************************************************************************
