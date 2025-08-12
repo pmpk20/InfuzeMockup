@@ -461,7 +461,7 @@ fluidPage(
     ),
     
     # =========== Part 2: Stated Adaptation (SA) - Placeholder ===========
-    tabPanel("Step 3: SA Version LATEST", value = "sa_panel", uiOutput("sa_ui_placeholder")),
+    tabPanel("Step 3: SA Version 1", value = "sa_panel", uiOutput("sa_ui_placeholder")),
     
     # =========== Part 2: Stated Adaptation (SA) - Placeholder ===========
     tabPanel("Step 3: SA Version 2", value = "sa_panel_2", uiOutput("sa_ui_placeholder2")),
@@ -470,7 +470,7 @@ fluidPage(
     tabPanel("Step 3: SA Version 3", value = "sa_panel_3", uiOutput("sa_ui_placeholder3")),
     
     # =========== Part 2: Stated Adaptation (SA) - OLD ===========
-    tabPanel("Step 3: SA Version OLD", value = "sa_panel_4", uiOutput("sa_ui_placeholder4")),
+    tabPanel("Step 3: SA Version NEW", value = "sa_panel_4", uiOutput("sa_ui_placeholder4")),
     
     # =========== Part 3: Summary - Placeholder ===========
     tabPanel("Step 4: Summary", value = "summary_panel", uiOutput("summary_ui_placeholder")),
