@@ -514,10 +514,6 @@ function(input, output, session) {
                     " (", textOutput("annual_change", inline = TRUE), ")")
           )
         )
-      ),
-      
-      div(class = "ethics-note",
-          p("NOTE: Still need a good solution for >1 cars")
       )
     )
     

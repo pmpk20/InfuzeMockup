@@ -32,6 +32,17 @@ fluidPage(
         text-align: center;
         font-weight: bold;
       }
+      
+      .github-callout {
+  margin: 30px auto; /* Add space and center it */
+  max-width: 700px;
+  padding: 20px;
+  background-color: #f8f9fa; /* A light grey background */
+  border: 1px solid #dee2e6;
+  border-left: 5px solid #333; /* A dark left border for emphasis */
+  border-radius: 8px;
+  text-align: center;
+}
     "))
   ),
   
@@ -46,10 +57,25 @@ fluidPage(
       value = "welcome_panel",
       div(class = "welcome-text",
           h3("Help us shape the future of travel in Leeds!"),
-          p("This is a survey mockup that does not store any data :) ")
+          h4("This is a survey mockup that does not store any data :) ")
       ),
-      img(src = 'infuze_image.png', class = 'rotated-image', alt = "An artistic impression of a future Leeds streetscape with a tram, cyclists, and pedestrians."),
+      
+      # --- NEW: GitHub Callout Box ---
+      div(class = "github-callout",
+          h5("This is an open-source project"),
+          p("You can explore, download, or contribute to the code on GitHub.", style = "margin-bottom: 15px;"),
+          tags$a(href = "https://github.com/pmpk20/InfuzeMockup",
+                 target = "_blank", # Opens in a new tab
+                 rel = "noopener noreferrer", # Security best practice for external links
+                 class = "btn btn-dark btn-lg", # Styles the link as a large, dark button
+                 icon("github"), # Adds the GitHub icon
+                 " View the Code on GitHub"
+          )
+      ),
+      
+      img(src = 'infuze_image.png', class = 'rotated-image', alt = "An artistic impression..."),
       hr(),
+      
       # Highlighted ethics approval note
       div(class = "ethics-note",
           p("TODO: Insert full ethical approval information and participant consent details here.")
