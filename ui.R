@@ -1,7 +1,7 @@
 # ui.R (Version 3)
 
 library(shiny)
-
+library(shinyBS)
 
 # Define the frequency options
 freq_choices <- c("Never", "Monthly", "Weekly", "Daily")
@@ -73,22 +73,22 @@ fluidPage(
       hr(),
       selectInput("gender", 
                   label = "How would you describe your gender?",
-                  width = "100%",
+                  width = "50%",
                   choices = c("Male", "Female", "In another way", "Prefer not to say")),
       
       selectInput("age_bracket", 
                   "How old are you?", 
-                  width = "100%",
+                  width = "50%",
                   choices = c("18-24", "25-34", "35-44", "45-54", "55-64", "65+")),
 
       selectInput("drivers_licence", 
                   "Do you currently hold a full valid UK driving licence?", 
-                  width = "100%",
+                  width = "50%",
                   choices = c("Yes", "No")),
       
       selectInput("education", 
                   "Please select the highest level of education that you have completed:", 
-                  width = "100%",
+                  width = "50%",
                   choices = c(
                     "No qualifications",
                     "1 - 4 Levels / CSEs / GCSEs, NVQ Level 1",
@@ -100,7 +100,7 @@ fluidPage(
                     
       selectInput("Income", 
                   "Please select the bracket that represents your total (before tax) monthly household income:", 
-                  width = "100%",
+                  width = "50%",
                   choices = c(
       "£0 to £1, 000",
       "£1, 001 to £1, 500",
@@ -132,7 +132,7 @@ fluidPage(
       
       # Remove selected defaults first
       selectInput("1BEmployment_Occupation", "Which of these descriptions best fits your current occupation?", 
-                  width = "100%",
+                  width = "50%",
                   choices = c(                    "Homemaker / housewife or house husband",
                                                   "Student / Full time education",
                               "Retired",
@@ -146,7 +146,7 @@ fluidPage(
       
       selectInput("1BEmployment_WFH", 
                   "How often do your work from home?",
-                  width = "100%",
+                  width = "50%",
                   selected = "Daily",
                   choices = c("Never",
                               "Less often than weekly",
@@ -161,12 +161,12 @@ fluidPage(
         condition = "input['1BEmployment_WFH'] != 'Daily'",
         selectInput("1BEmployment_TravelType", 
                     "How do you typically travel to your place of work?",
-                    width = "100%",
+                    width = "50%",
                     choices = c("My own vehicle", "Car club / sharing", "Public transport", "Walk / bike / other active travel")),
         
         selectInput("1BEmployment_TravelTime", 
                     "How long does it take for you to travel to your place of work?",
-                    width = "100%",
+                    width = "50%",
                     choices = c("More than 1 hour", "Between 30 - 60 minutes", "Between 10 - 30 minutes", "Fewer than 10 minutes"))
       ),
       
@@ -184,6 +184,24 @@ fluidPage(
       p("These questions help us understand how travel choices differ between different groups of people. All responses are anonymous."),
       hr(),
       
+      
+      # --- NEW: Dynamic Household Composition Section ---
+      h3("Household Composition"),
+      p("Please add each member of your household, including yourself. This helps us understand travel patterns within families."),
+      
+      actionButton("add_member_btn", "Add Household Member", 
+                   class = "btn-success", icon = icon("user-plus")),
+      hr(),
+      
+      # This is the placeholder where the server will insert new member rows
+      div(id = "household_member_placeholder"),
+      
+      hr(style = "border-top: 2px solid #ccc; margin-top: 30px;"),
+      
+      # --- Original Questions Moved Below ---
+      h3("About Your Household (Overall)"),
+      p("These questions are about your household as a whole."),
+      
       selectInput("Urbanicity", 
                   "Would you say that the area you live in is mostly rural or urban?", 
                   width = "100%",
@@ -194,34 +212,46 @@ fluidPage(
                   width = "100%",
                   choices = c("1 - I live alone", "2", "3", "4", "5+")),
       
+      
+      
+      selectInput("Urbanicity", 
+                  "Would you say that the area you live in is mostly rural or urban?", 
+                  width = "50%",
+                  choices = c("Rural", "Urban")),
+      
+      selectInput("household_size", 
+                  "How many adults (i.e., over 18 years old) including yourself currently live in your household:", 
+                  width = "50%",
+                  choices = c("1 - I live alone", "2", "3", "4", "5+")),
+      
       selectInput("household_size_5", 
                   "How many children younger than 5 years old currently live in your household:", 
-                  width = "100%",
+                  width = "50%",
                   choices = c("0", "1", "2", "3", "4", "5+")),
       
       selectInput("household_size_12", 
                   "How many children between 5 and 12 years old) currently live in your household:", 
-                  width = "100%",
+                  width = "50%",
                   choices = c("0", "1", "2", "3", "4", "5+")),
       
       selectInput("household_size_17", 
                   "How many teenagers (i.e., 13-18 years old) currently live in your household:", 
-                  width = "100%",
+                  width = "50%",
                   choices = c("0", "1", "2", "3", "4", "5+")),
       
       selectInput("household_change_adults", 
                   "How many new adults have started living in your household in the last six months:", 
-                  width = "100%",
+                  width = "50%",
                   choices = c("0", "1", "2", "3", "4", "5+")),
       
       selectInput("household_change_children", 
                   "How many new children (<18yrs) have started living in your household in the last six months:", 
-                  width = "100%",
+                  width = "50%",
                   choices = c("0", "1", "2", "3", "4", "5+")),
       
       selectInput("household_change_impairment", 
                   "How many people in your household have limited physical mobility?", 
-                  width = "100%",
+                  width = "50%",
                   choices = c("0", "1", "2", "3", "4", "5+")),
       
       
@@ -240,32 +270,32 @@ fluidPage(
       hr(),
       
       selectInput("life_moved_job", 
-                  width = "100%",
+                  width = "50%",
                   "Have you changed jobs?", 
                   choices = c("Yes", "No")),
       
       selectInput("life_moved_job", 
-                  width = "100%",
+                  width = "50%",
                   "Have you started working in a new location?", 
                   choices = c("Yes", "No")),
       
       selectInput("life_moved_house", 
-                  width = "100%",
+                  width = "50%",
                   "Have you moved house?", 
                   choices = c("Yes", "No")),
       
       selectInput("life_crime", 
-                  width = "100%",
+                  width = "50%",
                   "Have you been a victim of crime in your local area?", 
                   choices = c("Yes", "No")),
       
       selectInput("life_health", 
-                  width = "100%",
+                  width = "50%",
                   "Has your health status worsened?", 
                   choices = c("Yes", "No")),
       
       selectInput("life_health", 
-                  width = "100%",
+                  width = "50%",
                   "Has your mobility worsened?", 
                   choices = c("Yes", "No")),
       
@@ -285,7 +315,7 @@ fluidPage(
           p("Please answer these questions about any vehicles that your household owns or has long-term access to."),
           selectInput(
             "num_cars", 
-            width = "100%",
+            width = "50%",
             label = "1. How many vehicles (cars, vans, motorbikes) does your household currently have?",
             choices = c("0", "1", "2", "3", "4+"),
             selected = "1"
@@ -293,44 +323,73 @@ fluidPage(
         ),
         mainPanel(
           h3("Details of Your Vehicle(s)"),
-          p("Please provide details for up to your four most-used vehicles."),
-          # --- Conditional Panels for each car ---
+          p("Please provide details for up to your four most-used vehicles. You can collapse each box by clicking on the header text."),
+          
+          # Vehicle 1
           conditionalPanel(
             condition = "input.num_cars != '0'",
-            wellPanel(
-              h5("Main (Most-Used) Household Vehicle"),
-              selectInput("car1_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
-              selectInput("car1_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
-              selectInput("car1_mileage", "Approx. Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"))
+            bsCollapse(
+              id = "car1_collapse",
+              open = "car1_panel",
+              bsCollapsePanel(
+                title = "Main (Most-Used) Household Vehicle",
+                value = "car1_panel",
+                selectInput("car1_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
+                selectInput("car1_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
+                selectInput("car1_mileage", "Approx. Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+")),
+                selectInput("car1_age", "How long have you owned this vehicle?", choices = c("<1 year", "1-2 years", "More than 2 years"))
+              )
             )
           ),
+          
+          # Vehicle 2
           conditionalPanel(
             condition = "input.num_cars == '2' || input.num_cars == '3' || input.num_cars == '4+'",
-            wellPanel(
-              h5("Second Most-Used Household Vehicle"),
-              selectInput("car2_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
-              selectInput("car2_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
-              selectInput("car2_mileage", "Approx. Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"))
+            bsCollapse(
+              id = "car2_collapse",
+              bsCollapsePanel(
+                title = "Second Most-Used Household Vehicle",
+                value = "car2_panel",
+                selectInput("car2_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
+                selectInput("car2_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
+                selectInput("car2_mileage", "Approx. Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+")),
+                selectInput("car2_age", "How long have you owned this vehicle?", choices = c("<1 year", "1-2 years", "More than 2 years"))
+              )
             )
           ),
+          
+          # Vehicle 3
           conditionalPanel(
             condition = "input.num_cars == '3' || input.num_cars == '4+'",
-            wellPanel(
-              h5("Third Most-Used Household Vehicle"),
-              selectInput("car3_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
-              selectInput("car3_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
-              selectInput("car3_mileage", "Approx. Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"))
+            bsCollapse(
+              id = "car3_collapse",
+              bsCollapsePanel(
+                title = "Third Most-Used Household Vehicle",
+                value = "car3_panel",
+                selectInput("car3_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
+                selectInput("car3_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
+                selectInput("car3_mileage", "Approx. Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+")),
+                selectInput("car3_age", "How long have you owned this vehicle?", choices = c("<1 year", "1-2 years", "More than 2 years"))
+              )
             )
           ),
+          
+          # Vehicle 4
           conditionalPanel(
             condition = "input.num_cars == '4+'",
-            wellPanel(
-              h5("Fourth Most-Used Household Vehicle"),
-              selectInput("car4_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
-              selectInput("car4_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
-              selectInput("car4_mileage", "Approx. Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"))
+            bsCollapse(
+              id = "car4_collapse",
+              bsCollapsePanel(
+                title = "Fourth Most-Used Household Vehicle",
+                value = "car4_panel",
+                selectInput("car4_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
+                selectInput("car4_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
+                selectInput("car4_mileage", "Approx. Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+")),
+                selectInput("car4_age", "How long have you owned this vehicle?", choices = c("<1 year", "1-2 years", "More than 2 years"))
+              )
             )
           ),
+          
           conditionalPanel(
             condition = "input.num_cars == '0'",
             p("Since your household does not own a vehicle, we will move on to the next section.")
@@ -353,21 +412,21 @@ fluidPage(
       
       radioButtons("car_share_member", 
                    "Are you currently a member of a car club/car sharing service in Leeds (e.g., Enterprise Car Club)?",
-                   width = "100%",
+                   width = "50%",
                    choices = c("Yes", "No"), selected = "No"),
       
       hr(),
       
       radioButtons("car_share_aware", 
                    "Are you aware of a car sharing service available within a 10 minute walk of your home?",
-                   width = "100%",
+                   width = "50%",
                    choices = c("Yes", "No", "Don't know"), selected = "No"),
       
       hr(),
       
       selectInput("pt_spend", 
                   "Approximately, how much would you say that your household spends on public transport per month?",
-                  width = "100%",
+                  width = "50%",
                   choices = c("£0", "£1-£30", "£31-£60", "£61-£100", "More than £100")),
       
       hr(),
