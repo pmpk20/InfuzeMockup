@@ -461,19 +461,19 @@ fluidPage(
     ),
     
     # =========== Part 2: Stated Adaptation (SA) - Placeholder ===========
-    tabPanel("Step 3: SA Version 1", value = "sa_panel", uiOutput("sa_ui_placeholder")),
+    tabPanel("Choices: Version 1 Simple replace", value = "sa_panel", uiOutput("sa_ui_placeholder")),
     
     # =========== Part 2: Stated Adaptation (SA) - Placeholder ===========
-    tabPanel("Step 3: SA Version 2", value = "sa_panel_2", uiOutput("sa_ui_placeholder2")),
+    tabPanel("Choices: Version 1 Split PT", value = "sa_panel_2", uiOutput("sa_ui_placeholder2")),
     
     # =========== Part 2: Stated Adaptation (SA) - Placeholder ===========
-    tabPanel("Step 3: SA Version 3", value = "sa_panel_3", uiOutput("sa_ui_placeholder3")),
+    tabPanel("Choices: Version 3 Configurator", value = "sa_panel_3", uiOutput("sa_ui_placeholder3")),
     
     # =========== Part 2: Stated Adaptation (SA) - OLD ===========
-    tabPanel("Step 3: SA Version NEW", value = "sa_panel_4", uiOutput("sa_ui_placeholder4")),
+    tabPanel("Choices: Version 4 Simple but keep not replace", value = "sa_panel_4", uiOutput("sa_ui_placeholder4")),
     
     # =========== Part 3: Summary - Placeholder ===========
-    tabPanel("Step 4: Summary", value = "summary_panel", uiOutput("summary_ui_placeholder")),
+    tabPanel("Choices: Version 5 Menu based", value = "sa_panel_5", uiOutput("sa_ui_placeholder5")),
     
     # =========== Part 5: Attitudes  - Placeholder ===========
     # Then in your tabPanel:
