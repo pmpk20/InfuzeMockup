@@ -2,6 +2,7 @@
 
 library(shiny)
 library(shinyBS)
+library(shinydashboard)
 
 # Define the frequency options
 freq_choices <- c("Never", "Monthly", "Weekly", "Daily")
@@ -472,8 +473,181 @@ fluidPage(
     # =========== Part 2: Stated Adaptation (SA) - OLD ===========
     tabPanel("Choices: Version 4 Simple but keep not replace", value = "sa_panel_4", uiOutput("sa_ui_placeholder4")),
     
-    # =========== Part 3: Summary - Placeholder ===========
-    tabPanel("Choices: Version 5 Menu based", value = "sa_panel_5", uiOutput("sa_ui_placeholder5")),
+    # =========== Part 3: MENU BASED ===========
+    tabPanel("Choices: Version 5 Menu based", value = "sa_panel_5", 
+    
+    
+             fluidPage(
+               title = "Mobility Choice Experiment",
+               tags$head(
+                 tags$link(rel = "stylesheet", href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"),
+                 tags$style(HTML("
+      /* Category header */
+      .menu-category {
+        font-weight: 700;
+        font-size: 1.0em;
+        margin-top: 12px;
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 4px;
+      }
+
+      /* Each choice row: label left, cost right */
+      .menu-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 10px;
+        border-bottom: 1px solid #ececec;
+      }
+      .menu-item .label {
+        margin-left: 6px; /* space after checkbox */
+        font-weight: 500;
+      }
+      .menu-item .cost {
+        white-space: nowrap;
+        font-weight: 700;
+      }
+
+      /* Make the checkbox + custom content inline and tidy */
+      .shiny-options-group .form-check {
+        margin-bottom: 0;
+        padding: 0;
+      }
+      .shiny-options-group .form-check input[type='checkbox'] {
+        margin-left: 6px;
+        margin-right: 6px;
+      }
+
+      /* Right column boxes */
+      .scenario-box { background-color: #f8f9fa; border-left: 4px solid #007bff; margin-bottom: 18px; padding: 12px; }
+      .cost-display {
+        background-color: #e8f5e8;
+        border: 2px solid #28a745;
+        border-radius: 8px;
+        padding: 12px;
+        text-align: left;
+        font-size: 1em;
+        color: #155724;
+        min-height: 120px;
+      }
+      .summary-box {
+        background-color: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 5px;
+        padding: 12px;
+        min-height: 120px;
+      }
+      .confirm-row { text-align: center; margin-top: 12px; margin-bottom: 12px; }
+    "))
+               ),
+    
+    tabsetPanel(
+      id = "main_tabs",
+      tabPanel("Choices: Version 5 Menu based", value = "sa_panel_5",
+               fluidPage(
+                 # Scenario Description
+                 wellPanel(
+                   class = "scenario-box",
+                   h3("Future Mobility Scenario - Leeds 2026"),
+                   p(strong("Imagine the following changes have occurred:")),
+                   tags$ul(
+                     tags$li(strong("Push factors:"), "Fuel prices have increased by 40%, city centre parking now costs £15/day, and a new Clean Air Zone charges £12.50 for older petrol cars"),
+                     tags$li(strong("Pull factors:"), "New comprehensive car sharing network launched, improved bike share system, and integrated public transport passes available")
+                   ),
+                   p(strong("Given these changes, what would your ideal monthly mobility package look like?"))
+                 ),
+                 
+                 fluidRow(
+                   column(8,
+                          # Owned Vehicle (checkboxes now allow multiple choices)
+                          div(class = "menu-category", tagList(icon("car"), " OWNED VEHICLE")),
+                          checkboxGroupInput(
+                            inputId = "owned_vehicle",
+                            label = NULL,
+                            choiceNames = list(
+                              tags$div(class = "menu-item", tags$span(class = "label", "Keep my current Petrol Car"), tags$span(class = "cost", "£280")),
+                              tags$div(class = "menu-item", tags$span(class = "label", "Replace with Small Electric Vehicle"), tags$span(class = "cost", "£420")),
+                              tags$div(class = "menu-item", tags$span(class = "label", "Go Car-Free (rely on other services)"), tags$span(class = "cost", "£0"))
+                            ),
+                            choiceValues = c("petrol_car", "electric_car", "car_free"),
+                            selected = c("petrol_car") # keep sensible default
+                          ),
+                          
+                          # Public Transport (checkboxes)
+                          div(class = "menu-category", tagList(icon("bus"), " PUBLIC TRANSPORT")),
+                          checkboxGroupInput(
+                            inputId = "public_transport",
+                            label = NULL,
+                            choiceNames = list(
+                              tags$div(class = "menu-item", tags$span(class = "label", "None (pay-as-you-go)"), tags$span(class = "cost", "£0")),
+                              tags$div(class = "menu-item", tags$span(class = "label", "Off-Peak Travel Pass"), tags$span(class = "cost", "£35")),
+                              tags$div(class = "menu-item", tags$span(class = "label", "Full 'Leeds Travel Pass' (unlimited)"), tags$span(class = "cost", "£75"))
+                            ),
+                            choiceValues = c("pt_none", "pt_offpeak", "pt_unlimited"),
+                            selected = c("pt_none")
+                          ),
+                          
+                          # Car Sharing (optional)
+                          div(class = "menu-category", tagList(icon("car-side"), " CAR SHARING (optional)")),
+                          checkboxGroupInput(
+                            inputId = "car_sharing",
+                            label = NULL,
+                            choiceNames = list(
+                              tags$div(class = "menu-item", tags$span(class = "label", "Pay-as-you-go Access (occasional use)"), tags$span(class = "cost", "£25")),
+                              tags$div(class = "menu-item", tags$span(class = "label", "Monthly Subscription (regular use)"), tags$span(class = "cost", "£85"))
+                            ),
+                            choiceValues = c("cs_payg", "cs_subscription"),
+                            selected = NULL
+                          ),
+                          
+                          # Bike Sharing (optional)
+                          div(class = "menu-category", tagList(icon("bicycle"), " BIKE SHARING (optional)")),
+                          checkboxGroupInput(
+                            inputId = "bike_sharing",
+                            label = NULL,
+                            choiceNames = list(
+                              tags$div(class = "menu-item", tags$span(class = "label", "Monthly Bike Share Pass"), tags$span(class = "cost", "£15"))
+                            ),
+                            choiceValues = c("bs_monthly"),
+                            selected = NULL
+                          )
+                   ), # end left column
+                   
+                   column(4,
+                          div(class = "cost-display",
+                              h4("Total Estimated Monthly Cost"),
+                              uiOutput("cost_breakdown")  # render HTML lines + total
+                          ),
+                          div(class = "summary-box",
+                              h4("Your Chosen Package:"),
+                              verbatimTextOutput("package_summary")
+                          )
+                   ) # end right column
+                 ), # end fluidRow
+                 
+                 br(),
+                 
+                 div(class = "confirm-row",
+                     actionButton("confirm_choice", "Confirm My Mobility Package", class = "btn-primary btn-lg")
+                 ),
+                 
+                 br(),
+                 
+                 conditionalPanel(
+                   condition = "input.confirm_choice > 0",
+                   wellPanel(
+                     style = "background-color: #d4edda; border-color: #c3e6cb;",
+                     h4(style = "color: #155724;", "Thank you for your response!"),
+                     p("Your mobility package choice has been recorded.")
+                   )
+                 )
+               ) # end inner fluidPage
+      ) # end tabPanel
+    ) # end tabsetPanel
+             ) # end fluidPage
+    ),
     
     # =========== Part 5: Attitudes  - Placeholder ===========
     # Then in your tabPanel:

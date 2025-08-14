@@ -1172,126 +1172,92 @@ function(input, output, session) {
   
   # This UI placeholder now just creates the box where the text will go.
   # ========= VERSION 5 (MENU BUILDER) - CORRECTED =========
-  output$sa_ui_placeholder5 <- renderUI({
+  function(input, output, session) {
     
-    req(input$num_cars)
-    # A more robust check: require all necessary vehicle inputs before proceeding.
-    if (input$num_cars != "0") {
-      num_vehicles <- switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4)
-      for(i in 1:num_vehicles) {
-        req(input[[paste0("car", i, "_type")]])
-      }
-    }
-    
-    # --- Helper function for Car-Owning Households ---
-    create_vehicle_menu_block <- function(car_number, vehicle_desc) {
-      ns_prefix <- paste0("sa5_car", car_number, "_")
-      decision_id <- paste0(ns_prefix, "decision")
-      
-      bsCollapsePanel(
-        title = paste0("Decision for Vehicle ", car_number, ": Your ", vehicle_desc),
-        value = paste0("sa5_panel_", car_number), # Add a value for the 'open' argument
-        style = "primary",
-        wellPanel(
-          fluidRow(
-            column(6,
-                   h5("Step 1: Choose what to do with this vehicle"),
-                   radioButtons(decision_id, label = NULL,
-                                choices = c("Keep", "Replace", "Dispose"),
-                                selected = character(0)),
-                   conditionalPanel(
-                     condition = paste0("input['", decision_id, "'] == 'Replace'"),
-                     wellPanel(
-                       p(strong("Details for replacement vehicle:")),
-                       selectInput(paste0(ns_prefix, "replace_fuel"), "Fuel:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
-                       selectInput(paste0(ns_prefix, "replace_mileage"), "Mileage:", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"))
-                     )
-                   )
-            ),
-            column(6,
-                   h5("Consider adding services"),
-                   p("The services below can be added to your household's overall travel plan. You can select them in the 'Household Services' section at the bottom of the page.")
-            )
-          )
-        )
-      )
-    }
-    
-    # --- Helper function for Zero-Car Households ---
-    create_zero_car_menu_block <- function() {
-      wellPanel(
-        h4("Configure Your Household's Travel Services"),
-        p("Since your household does not own a vehicle, please select any new services you would like to adopt."),
-        checkboxGroupInput("sa5_0_car_services", 
-                           label = "Select services to add:",
-                           choices = c("Leeds Travel Pass", "INFUZE Standard Car Club", "INFUZE Premium Peer-to-Peer")),
-        p(strong("Costs:"), "Travel Pass (£50/month), Standard Club (£25/month), Premium P2P (£75/month). Your total estimated cost is shown at the top of the page.")
-      )
-    }
-    
-    # --- Household-level Services for Car Owners ---
-    household_services_block <- wellPanel(
-      style = "background-color: #e9ecef; border: 2px solid #007bff;",
-      h4("Step 2: Add Household-Wide Services"),
-      p("Select any services you wish to add for your entire household. These are in addition to the decisions you made for your specific vehicle(s) above."),
-      checkboxGroupInput("sa5_household_services", 
-                         label = NULL,
-                         choices = c("Leeds Travel Pass", "INFUZE Standard Car Club", "INFUZE Premium Peer-to-Peer")),
-      p(strong("Costs:"), "Travel Pass (£50/month), Standard Club (£25/month), Premium P2P (£75/month). Your total estimated cost is shown at the top of the page.")
+    # single source of truth: costs and labels
+    costs <- list(
+      petrol_car = 280,
+      electric_car = 420,
+      car_free = 0,
+      pt_none = 0,
+      pt_offpeak = 35,
+      pt_unlimited = 75,
+      cs_payg = 25,
+      cs_subscription = 85,
+      bs_monthly = 15
     )
     
-    # --- UI Assembly ---
-    tagList(
-      wellPanel(
-        style = "background-color: white; border: 2px solid black;",
-        h3("Build Your New Household Travel Plan"),
-        tags$table(
-          style = "width: 100%; border-collapse: collapse;",
-          tags$thead(tags$tr(
-            tags$th(style="border:1px solid #ddd; padding:8px; background-color:#f2f2f2; width:50%;", "Scenario Changes"),
-            tags$th(style="border:1px solid #ddd; padding:8px; background-color:#f2f2f2; width:50%;", "Your Estimated Costs")
-          )),
-          tags$tbody(
-            tags$tr(
-              tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Fuel prices: "), "+60p per litre. ", strong("Parking costs: "), "+20%."),
-              tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Current monthly cost: £"), textOutput("current_monthly_formatted", inline=TRUE))
-            ),
-            tags$tr(
-              tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("New Options: "), "Travel Pass (£50/mo), Car Clubs (£25-75/mo)."),
-              tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("New estimated monthly cost: £"), textOutput("new_monthly_formatted", inline=TRUE), textOutput("monthly_change", inline=TRUE))
-            )
-          )
-        )
-      ),
-      
-      if (input$num_cars == "0") {
-        create_zero_car_menu_block()
+    labels <- list(
+      petrol_car = "Keep my current Petrol Car",
+      electric_car = "Replace with Small Electric Vehicle",
+      car_free = "Go Car-Free (rely on other services)",
+      pt_none = "None (pay-as-you-go)",
+      pt_offpeak = "Off-Peak Travel Pass",
+      pt_unlimited = "Full 'Leeds Travel Pass' (unlimited)",
+      cs_payg = "Pay-as-you-go Access (occasional use)",
+      cs_subscription = "Monthly Subscription (regular use)",
+      bs_monthly = "Monthly Bike Share Pass"
+    )
+    
+    # helper: collect all selected item codes (vector)
+    selected_items <- reactive({
+      sel <- c(input$owned_vehicle, input$public_transport, input$car_sharing, input$bike_sharing)
+      sel <- unlist(sel, use.names = FALSE)
+      sel <- sel[!is.na(sel) & nzchar(sel)]
+      unique(sel)
+    })
+    
+    # reactive total
+    total_monthly_cost <- reactive({
+      s <- selected_items()
+      if (length(s) == 0) return(0)
+      sum(unlist(costs[s]), na.rm = TRUE)
+    })
+    
+    # render cost breakdown as HTML (individual lines + total)
+    output$cost_breakdown <- renderUI({
+      s <- selected_items()
+      if (length(s) == 0) {
+        tags$div(tags$p("No services selected."), tags$p(tags$strong("Total: £0")))
       } else {
-        # THE FIX IS HERE: We pre-build the list of panels and only render the
-        # bsCollapse element if the list is not empty.
-        
-        # 1. Generate the list of panels first
-        vehicle_panels <- lapply(1:switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4), function(i) {
-          create_vehicle_menu_block(
-            car_number = i,
-            vehicle_desc = paste(input[[paste0("car", i, "_fuel")]], input[[paste0("car", i, "_type")]])
+        # lines with label and cost, aligned left within the box
+        lines <- lapply(s, function(code) {
+          tags$div(style = "display:flex; justify-content:space-between; padding:2px 0;",
+                   tags$span(labels[[code]]),
+                   tags$span(style = "font-weight:700;", paste0("£", costs[[code]]))
           )
         })
-        
-        # 2. Conditionally render the tagList containing the bsCollapse
-        if (length(vehicle_panels) > 0) {
-          tagList(
-            do.call(bsCollapse, c(list(id = "sa5_vehicle_collapse", multiple = TRUE, open = "sa5_panel_1"), vehicle_panels)),
-            hr(),
-            household_services_block
-          )
-        }
-      },
-      
-      hr(),
-      actionButton("to_summary_button", "Continue to Summary", class = "btn-success btn-lg")
-    )
-  })
+        # total line
+        total_line <- tags$div(style = "border-top:1px solid #d4e6d4; margin-top:6px; padding-top:6px; display:flex; justify-content:space-between;",
+                               tags$span(tags$strong("Total")),
+                               tags$span(tags$strong(paste0("£", total_monthly_cost())))
+        )
+        tagList(lines, total_line)
+      }
+    })
+    
+    # textual package summary
+    output$package_summary <- renderText({
+      s <- selected_items()
+      if (length(s) == 0) return("No selections.")
+      lines <- sapply(s, function(code) paste0(labels[[code]], " — £", costs[[code]]))
+      paste(lines, collapse = "\n")
+    })
+    
+    # log on confirm
+    observeEvent(input$confirm_choice, {
+      data <- list(
+        timestamp = as.character(Sys.time()),
+        selections = selected_items(),
+        total_cost = total_monthly_cost(),
+        session_id = session$token
+      )
+      cat("Choice recorded:\n")
+      cat(toJSON(data, pretty = TRUE, auto_unbox = TRUE), "\n")
+      # replace with persistent save if required
+    })
+    
+  }
   
   # This renderer now correctly finds summary_text() in the main server scope.
   # output$final_summary_text <- renderText({
