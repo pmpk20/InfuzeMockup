@@ -1172,92 +1172,425 @@ function(input, output, session) {
   
   # This UI placeholder now just creates the box where the text will go.
   # ========= VERSION 5 (MENU BUILDER) - CORRECTED =========
-  function(input, output, session) {
+  # sa_ui_placeholder5 
+  output$sa_ui_placeholder5 <- renderUI({
     
-    # single source of truth: costs and labels
-    costs <- list(
-      petrol_car = 280,
-      electric_car = 420,
-      car_free = 0,
-      pt_none = 0,
-      pt_offpeak = 35,
-      pt_unlimited = 75,
-      cs_payg = 25,
-      cs_subscription = 85,
-      bs_monthly = 15
-    )
+    # Gatekeeper
+    req(input$num_cars)
+    if (input$num_cars != "0") {
+      req(input$car1_type, input$car1_fuel, input$car1_mileage)
+    }
     
-    labels <- list(
-      petrol_car = "Keep my current Petrol Car",
-      electric_car = "Replace with Small Electric Vehicle",
-      car_free = "Go Car-Free (rely on other services)",
-      pt_none = "None (pay-as-you-go)",
-      pt_offpeak = "Off-Peak Travel Pass",
-      pt_unlimited = "Full 'Leeds Travel Pass' (unlimited)",
-      cs_payg = "Pay-as-you-go Access (occasional use)",
-      cs_subscription = "Monthly Subscription (regular use)",
-      bs_monthly = "Monthly Bike Share Pass"
-    )
+    # Cost calculation function
+    cost_func <- function(fuel, mileage) {
+      base_costs <- list("Petrol"=150*1.25, "Diesel"=160*1.25, "Fully Electric"=80, "Plug-in Hybrid"=120*1.15)
+      parking <- switch(mileage, "0-2,000"=5, "2,001-5,000"=10, "5,001-10,000"=15, "10,001+"=20, 0)
+      multiplier <- switch(mileage, "0-2,000"=0.6, "2,001-5,000"=1.0, "5,001-10,000"=1.5, "10,001+"=2.2, 1)
+      return(round((base_costs[[fuel]] * multiplier) + (parking * 1.20), 0))
+    }
     
-    # helper: collect all selected item codes (vector)
-    selected_items <- reactive({
-      sel <- c(input$owned_vehicle, input$public_transport, input$car_sharing, input$bike_sharing)
-      sel <- unlist(sel, use.names = FALSE)
-      sel <- sel[!is.na(sel) & nzchar(sel)]
-      unique(sel)
-    })
-    
-    # reactive total
-    total_monthly_cost <- reactive({
-      s <- selected_items()
-      if (length(s) == 0) return(0)
-      sum(unlist(costs[s]), na.rm = TRUE)
-    })
-    
-    # render cost breakdown as HTML (individual lines + total)
-    output$cost_breakdown <- renderUI({
-      s <- selected_items()
-      if (length(s) == 0) {
-        tags$div(tags$p("No services selected."), tags$p(tags$strong("Total: £0")))
-      } else {
-        # lines with label and cost, aligned left within the box
-        lines <- lapply(s, function(code) {
-          tags$div(style = "display:flex; justify-content:space-between; padding:2px 0;",
-                   tags$span(labels[[code]]),
-                   tags$span(style = "font-weight:700;", paste0("£", costs[[code]]))
-          )
-        })
-        # total line
-        total_line <- tags$div(style = "border-top:1px solid #d4e6d4; margin-top:6px; padding-top:6px; display:flex; justify-content:space-between;",
-                               tags$span(tags$strong("Total")),
-                               tags$span(tags$strong(paste0("£", total_monthly_cost())))
+    # Attribute option creator - shows cost-quality trade-offs
+    create_attribute_option <- function(option_id, title, base_price, price_modifier, modifier_text, description, is_default = FALSE, is_premium = FALSE) {
+      total_price <- base_price + price_modifier
+      
+      div(
+        class = paste("attribute-option", if(is_default) "default-option", if(is_premium) "premium-option"),
+        id = option_id,
+        onclick = paste0("Shiny.setInputValue('", option_id, "_clicked', Math.random())"),
+        style = "cursor: pointer; margin-bottom: 8px;",
+        div(class = "attribute-content",
+            fluidRow(
+              column(7,
+                     div(style = "display: flex; align-items: center;",
+                         h6(title, style = "margin: 0; flex-grow: 1;"),
+                         if(is_default) span(class = "default-badge", "Standard"),
+                         if(is_premium) span(class = "premium-badge", "Premium")
+                     ),
+                     p(description, class = "attribute-description", style = "margin: 2px 0 0 0;")
+              ),
+              column(3, align = "center",
+                     span(class = "price-modifier", 
+                          if(price_modifier > 0) paste0("+£", price_modifier) else if(price_modifier < 0) paste0("-£", abs(price_modifier)) else "£0"),
+                     br(),
+                     span(class = "modifier-text", modifier_text, style = "font-size: 0.8em; color: #666;")
+              ),
+              column(2, align = "right",
+                     span(class = "total-price", paste0("£", total_price)),
+                     br(),
+                     span(class = "select-text", "Select", style = "font-size: 0.8em; color: #007bff;")
+              )
+            )
         )
-        tagList(lines, total_line)
-      }
-    })
-    
-    # textual package summary
-    output$package_summary <- renderText({
-      s <- selected_items()
-      if (length(s) == 0) return("No selections.")
-      lines <- sapply(s, function(code) paste0(labels[[code]], " — £", costs[[code]]))
-      paste(lines, collapse = "\n")
-    })
-    
-    # log on confirm
-    observeEvent(input$confirm_choice, {
-      data <- list(
-        timestamp = as.character(Sys.time()),
-        selections = selected_items(),
-        total_cost = total_monthly_cost(),
-        session_id = session$token
       )
-      cat("Choice recorded:\n")
-      cat(toJSON(data, pretty = TRUE, auto_unbox = TRUE), "\n")
-      # replace with persistent save if required
+    }
+    
+    # Service section creator
+    create_service_section <- function(service_title, service_description, base_price, service_class, options_list) {
+      tagList(
+        div(class = paste("service-header", service_class),
+            fluidRow(
+              column(8,
+                     h4(service_title, style = "margin: 0;"),
+                     p(service_description, style = "margin: 5px 0 0 0; opacity: 0.9;")
+              ),
+              column(4, align = "right",
+                     span("From ", style = "color: white; opacity: 0.8;"),
+                     span(paste0("£", base_price), style = "font-size: 1.3em; font-weight: bold; color: white;"),
+                     br(),
+                     span("per month", style = "color: white; opacity: 0.8; font-size: 0.9em;")
+              )
+            )
+        ),
+        div(class = "service-options",
+            options_list
+        )
+      )
+    }
+    
+    # Basket display reactive  
+    output$sa4_basket_display <- renderUI({
+      div(class = "cost-basket",
+          h5("Selected Portfolio", style = "margin-bottom: 10px;"),
+          div(id = "basket-items", style = "min-height: 50px;",
+              p("Select service attributes below", style = "color: #666; font-style: italic;")
+          ),
+          hr(style = "margin: 10px 0;"),
+          div(class = "basket-total",
+              span("Monthly Total: ", style = "font-weight: bold;"),
+              span(id = "basket-total-amount", "£0", style = "font-weight: bold; font-size: 1.3em; color: #28a745;")
+          )
+      )
     })
     
-  }
+    # Scenario header
+    scenario_header <- div(style="text-align: center; margin-bottom: 30px;",
+                           h2("Design Your Mobility Portfolio"),
+                           p("Choose your preferred service levels across different transport options. Each service shows attribute trade-offs with associated costs."),
+                           fluidRow(
+                             column(8,
+                                    wellPanel(
+                                      style = "background-color: #f8f9fa; border: 1px solid #dee2e6; text-align: left; padding: 15px;",
+                                      h5("Leeds 2030 Scenario:", style = "margin-top: 0;"),
+                                      tags$table(
+                                        class="table table-sm table-borderless", style="margin-bottom: 0;",
+                                        tags$tbody(
+                                          tags$tr(tags$td(icon("gas-pump"), " Fuel prices:"), tags$td("+60p/litre")),
+                                          tags$tr(tags$td(icon("parking"), " Parking:"), tags$td("+20% permits")),  
+                                          tags$tr(tags$td(icon("bus"), " Public transport:"), tags$td("New integrated passes")),
+                                          tags$tr(tags$td(icon("share-alt"), " Mobility services:"), tags$td("Expanded car sharing"))
+                                        )
+                                      )
+                                    )
+                             ),
+                             column(4,
+                                    wellPanel(
+                                      style = "background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px;",
+                                      uiOutput("sa4_basket_display")
+                                    )
+                             )
+                           )
+    )
+    
+    # Main UI
+    tagList(
+      tags$style(HTML("
+      .attribute-option { 
+        background: #fff; 
+        border: 1px solid #e9ecef; 
+        border-radius: 6px; 
+        padding: 12px; 
+        transition: all 0.15s ease;
+        position: relative;
+      }
+      .attribute-option:hover { 
+        border-color: #007bff; 
+        box-shadow: 0 2px 8px rgba(0,123,255,0.1); 
+        transform: translateY(-1px);
+      }
+      .attribute-option.selected { 
+        border-color: #28a745; 
+        background-color: #f8fff9;
+        box-shadow: 0 0 0 2px rgba(40,167,69,0.2);
+      }
+      .attribute-option.default-option { background-color: #f8f9fa; }
+      .attribute-option.premium-option { background-color: #fff8f0; }
+      
+      .service-header { 
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+        color: white; 
+        padding: 15px 20px; 
+        border-radius: 8px; 
+        margin: 25px 0 15px 0; 
+      }
+      .service-header.private { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+      .service-header.carclub { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+      .service-header.p2p { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+      .service-header.public { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
+      .service-header.micro { background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); }
+      
+      .service-options { 
+        background: #fafbfc; 
+        padding: 15px; 
+        border-radius: 0 0 8px 8px; 
+        margin-bottom: 20px;
+        border: 1px solid #e9ecef;
+        border-top: none;
+      }
+      
+      .default-badge { 
+        background: #6c757d; color: white; padding: 2px 6px; border-radius: 10px; font-size: 0.7em; margin-left: 8px;
+      }
+      .premium-badge { 
+        background: #ffc107; color: #000; padding: 2px 6px; border-radius: 10px; font-size: 0.7em; margin-left: 8px;
+      }
+      .price-modifier { 
+        font-weight: bold; 
+        font-size: 1.1em;
+      }
+      .total-price { 
+        font-size: 1.2em; 
+        font-weight: bold; 
+        color: #28a745; 
+      }
+      .attribute-description { 
+        color: #666; 
+        font-size: 0.85em; 
+      }
+      .select-text { 
+        font-weight: bold;
+      }
+    ")),
+    
+    scenario_header,
+    
+    div(class = "container-fluid", style = "max-width: 1000px;",
+        
+        # PRIVATE VEHICLE OWNERSHIP
+        create_service_section(
+          "Private Vehicle Ownership", 
+          "Own and maintain your personal vehicle(s) with different specification levels",
+          if(input$num_cars != "0") cost_func(input$car1_fuel, input$car1_mileage) else 150,
+          "private",
+          tagList(
+            if (input$num_cars != "0") {
+              lapply(1:switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4), function(i) {
+                base_cost <- cost_func(input[[paste0("car", i, "_fuel")]], input[[paste0("car", i, "_mileage")]])
+                tagList(
+                  h6(paste("Vehicle", i, ":", input[[paste0("car", i, "_fuel")]], input[[paste0("car", i, "_type")]]), 
+                     style = "margin: 15px 0 10px 0; color: #495057;"),
+                  create_attribute_option(
+                    paste0("keep_current_", i), "Keep Current Vehicle", base_cost, 0, "no change",
+                    "Continue with existing vehicle under new scenario conditions", is_default = TRUE
+                  ),
+                  create_attribute_option(
+                    paste0("upgrade_insurance_", i), "Enhanced Insurance & Breakdown", base_cost, 25, "premium cover",  
+                    "Full comprehensive plus European breakdown and courtesy car"
+                  ),
+                  create_attribute_option(
+                    paste0("replace_ev_", i), "Replace with Electric Vehicle", base_cost, 60, "new EV",
+                    "Brand new electric vehicle with home charging installation"
+                  )
+                )
+              })
+            }
+          )
+        ),
+        
+        # CAR CLUB SERVICES
+        create_service_section(
+          "Car Club Membership",
+          "Access to shared vehicles with different availability and booking flexibility levels", 
+          35,
+          "carclub",
+          tagList(
+            h6("Availability Level", style = "margin: 0 0 10px 0; color: #495057; font-weight: bold;"),
+            create_attribute_option(
+              "carclub_basic", "Basic Access", 35, 0, "standard",
+              "Vehicle available with 24-hour advance booking, neighbourhood pods", is_default = TRUE
+            ),
+            create_attribute_option(
+              "carclub_priority", "Priority Access", 35, 25, "faster booking",
+              "2-hour advance booking, wider vehicle selection, city-wide access"
+            ),
+            create_attribute_option(
+              "carclub_guaranteed", "Guaranteed Access", 35, 45, "on-demand",
+              "Immediate booking, guaranteed availability during peak hours", is_premium = TRUE
+            ),
+            
+            br(),
+            h6("Vehicle Type", style = "margin: 15px 0 10px 0; color: #495057; font-weight: bold;"),
+            create_attribute_option(
+              "carclub_standard", "Standard Fleet", 0, 0, "economy cars",
+              "Small city cars and compact vehicles, basic specification"
+            ),
+            create_attribute_option(
+              "carclub_premium", "Premium Fleet Access", 0, 20, "better vehicles", 
+              "Mid-size vehicles, SUVs, and premium models available"
+            ),
+            create_attribute_option(
+              "carclub_specialist", "Specialist Vehicles", 0, 15, "cargo/family",
+              "Access to vans, people carriers, and cargo vehicles when needed"
+            )
+          )
+        ),
+        
+        # PEER-TO-PEER SHARING
+        create_service_section(
+          "Peer-to-Peer Car Sharing",
+          "Share vehicles within your community with different coordination and reliability levels",
+          15, 
+          "p2p",
+          tagList(
+            h6("Coordination Level", style = "margin: 0 0 10px 0; color: #495057; font-weight: bold;"),
+            create_attribute_option(
+              "p2p_informal", "Informal Neighbourhood Group", 15, 0, "basic sharing",
+              "Arrange directly with neighbours, informal scheduling", is_default = TRUE  
+            ),
+            create_attribute_option(
+              "p2p_managed", "Managed Community Scheme", 15, 20, "coordinated",
+              "Professional coordination, booking app, maintenance included"
+            ),
+            create_attribute_option(
+              "p2p_guaranteed", "Guaranteed Community Access", 15, 35, "reliable access",
+              "Backup vehicles available, insurance included, priority booking", is_premium = TRUE
+            ),
+            
+            br(),
+            h6("Coverage Area", style = "margin: 15px 0 10px 0; color: #495057; font-weight: bold;"),
+            create_attribute_option(
+              "p2p_local", "Immediate Neighbourhood", 0, 0, "walking distance", 
+              "Vehicles within 200m, small local group of 8-12 households"
+            ),
+            create_attribute_option(
+              "p2p_extended", "Extended Area Network", 0, 10, "wider choice",
+              "Multiple neighbourhood groups, vehicles within 800m, larger fleet"
+            )
+          )
+        ),
+        
+        # PUBLIC TRANSPORT
+        create_service_section(
+          "Public Transport",
+          "Integrated transport passes with different coverage and flexibility levels",
+          50,
+          "public", 
+          tagList(
+            h6("Coverage Level", style = "margin: 0 0 10px 0; color: #495057; font-weight: bold;"),
+            create_attribute_option(
+              "pt_local", "Local Area Pass", 35, 0, "Leeds zone",
+              "Unlimited buses and local rail within Leeds boundary", is_default = TRUE
+            ),
+            create_attribute_option(
+              "pt_regional", "West Yorkshire Pass", 50, 15, "regional access",
+              "All buses, trains, and metros across West Yorkshire"
+            ),
+            create_attribute_option(
+              "pt_national", "National Rail Included", 50, 40, "long distance", 
+              "Regional pass plus discounted national rail travel", is_premium = TRUE
+            ),
+            
+            br(),
+            h6("Flexibility Options", style = "margin: 15px 0 10px 0; color: #495057; font-weight: bold;"),
+            create_attribute_option(
+              "pt_standard", "Standard Pass", 0, 0, "fixed monthly",
+              "Monthly pass, no refunds, standard terms"
+            ),
+            create_attribute_option(
+              "pt_flexible", "Flexible Pass", 0, 12, "pause/resume", 
+              "Can pause during holidays, partial refunds available"
+            )
+          )
+        ),
+        
+        # MICROMOBILITY & ACTIVE TRAVEL
+        create_service_section(
+          "Micromobility & Active Travel",
+          "E-bikes, scooters, and walking/cycling infrastructure access",
+          10,
+          "micro",
+          tagList(
+            h6("Service Level", style = "margin: 0 0 10px 0; color: #495057; font-weight: bold;"),
+            create_attribute_option(
+              "micro_basic", "Basic Bike Share", 10, 0, "standard access",
+              "Manual bikes, 30-minute journeys, docking stations", is_default = TRUE
+            ),
+            create_attribute_option(
+              "micro_electric", "E-bike & E-scooter Access", 10, 15, "powered options",
+              "Electric bikes and scooters, 45-minute journeys, more locations"
+            ),
+            create_attribute_option(
+              "micro_premium", "Premium Active Mobility", 10, 25, "unlimited access",
+              "All e-bike/scooter types, unlimited time, priority support", is_premium = TRUE
+            ),
+            
+            br(), 
+            h6("Additional Services", style = "margin: 15px 0 10px 0; color: #495057; font-weight: bold;"),
+            create_attribute_option(
+              "micro_storage", "Secure Cycle Storage", 0, 8, "safe parking",
+              "Guaranteed secure parking at home, work, and transport hubs"
+            ),
+            create_attribute_option(
+              "micro_maintenance", "Bike Maintenance Package", 0, 12, "full service",
+              "Annual service, repairs, and breakdown assistance for personal bikes"
+            )
+          )
+        )
+    ),
+    
+    br(),
+    div(align="center",
+        actionButton("to_summary_button", "Continue with Portfolio", class="btn-primary btn-lg", style="margin: 20px 0;")
+    ),
+    
+    # JavaScript for selection management
+    tags$script(HTML("
+      // Allow only one selection per service category
+      $(document).on('click', '.attribute-option', function() {
+        var $option = $(this);
+        var $serviceSection = $option.closest('.service-options');
+        var $categoryHeader = $option.prevAll('h6:first');
+        
+        // For same category, deselect others 
+        $categoryHeader.nextUntil('h6, br').filter('.attribute-option.selected').removeClass('selected');
+        
+        // Toggle current selection
+        $option.toggleClass('selected');
+        
+        updateBasket();
+      });
+      
+      function updateBasket() {
+        var selectedOptions = [];
+        var totalCost = 0;
+        
+        $('.attribute-option.selected').each(function() {
+          var $option = $(this);
+          var title = $option.find('h6').text();
+          if (!title) title = $option.find('h5').first().text(); // Fallback
+          var priceText = $option.find('.total-price').text();
+          var price = parseFloat(priceText.replace('£', ''));
+          
+          selectedOptions.push({title: title, price: price});
+          totalCost += price;
+        });
+        
+        // Update basket display
+        var $basketItems = $('#basket-items');
+        if (selectedOptions.length === 0) {
+          $basketItems.html('<p style=\"color: #666; font-style: italic;\">Select service attributes below</p>');
+        } else {
+          var itemsHtml = selectedOptions.map(function(item) {
+            return '<div style=\"padding: 2px 0; font-size: 0.9em; display: flex; justify-content: space-between;\"><span>• ' + 
+                   item.title + '</span><span>£' + item.price + '</span></div>';
+          }).join('');
+          $basketItems.html(itemsHtml);
+        }
+        
+        $('#basket-total-amount').text('£' + totalCost);
+      }
+    "))
+    )
+  })
   
   # This renderer now correctly finds summary_text() in the main server scope.
   # output$final_summary_text <- renderText({
