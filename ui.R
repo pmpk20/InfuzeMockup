@@ -462,64 +462,19 @@ fluidPage(
     ),
     
     # =========== Part 2: Stated Adaptation (SA) - Placeholder ===========
-    tabPanel("Choices: Version 1 Simple replace", value = "sa_panel", uiOutput("sa_ui_placeholder")),
+    # tabPanel("Choices: Version 1 Simple replace", value = "sa_panel", uiOutput("sa_ui_placeholder")),
     
     # =========== Part 2: Stated Adaptation (SA) - Placeholder ===========
-    tabPanel("Choices: Version 1 Split PT", value = "sa_panel_2", uiOutput("sa_ui_placeholder2")),
-    
-    # =========== Part 2: Stated Adaptation (SA) - Placeholder ===========
-    tabPanel("Choices: Version 3 Configurator", value = "sa_panel_3", uiOutput("sa_ui_placeholder3")),
+    tabPanel("Choices: Version 1: CE", value = "sa_panel_2", uiOutput("sa_ui_placeholder2")),
     
     # =========== Part 2: Stated Adaptation (SA) - OLD ===========
-    tabPanel("Choices: Version 4 Simple but keep not replace", value = "sa_panel_4", uiOutput("sa_ui_placeholder4")),
+    tabPanel("Choices: Version 2: CE Packages", value = "sa_panel_3", uiOutput("sa_ui_placeholder3")),
     
+    # =========== Part 2: Stated Adaptation (SA) - Placeholder ===========
+    tabPanel("Choices: Version 3: Configurator", value = "sa_panel_4", uiOutput("sa_ui_placeholder4")),
+
     # =========== Part 3: MENU BASED ===========
-    tabPanel("Choices: Version 4 Better menu", value = "sa_panel_5", uiOutput("sa_ui_placeholder5")),
+    tabPanel("Choices: Version 4: Menu", value = "sa_panel_5", uiOutput("sa_ui_placeholder5")),
     
-    # =========== Part 5: Attitudes  - Placeholder ===========
-    # Then in your tabPanel:
-    tabPanel("Step 5: Attitudes", 
-             value = "AttitudesPage",
-             h3("About Your Life"),
-             p("These questions are about big changes in your life in the last six months. Your honest answer is appreciated"),
-             h5("ALL WORDING IS PROVISIONAL"),
-             hr(),
-             
-             sliderInput(inputId = "SliderTest",
-                         label = "Example sliding scale to show that we can do attitudes like this",
-                         min = 0, max = 100, value = 50, ticks = FALSE,
-                         width = "100%"),
-             
-             hr(),
-             
-             h4("How often do you do the following?"),
-             div(class = "ethics-note",
-                 p("CHECK: Just showing that we can do different response options here")
-             ),
-             # Header row
-             div(style = "display: flex; margin-bottom: 10px;",
-                 div(style = "width: 150px;"), 
-                 lapply(freq_choices, function(x) {
-                   div(style = "width: 100px; text-align: center; font-weight: bold;", x)
-                 })
-             ),
-             
-             # Data rows
-             lapply(transport_modes, function(mode) {
-               div(style = "display: flex; align-items: center; margin-bottom: 5px;",
-                   div(style = "width: 150px;", strong(mode)),
-                   div(style = "width: 400px;",
-                       radioButtons(paste0("freq_", gsub(" ", "_", tolower(mode))), 
-                                    label = NULL,
-                                    choices = setNames(freq_choices, freq_choices),
-                                    inline = TRUE,
-                                    width = "100%")
-                   )
-               )
-             }),
-             
-             hr(),
-             actionButton("to_rp1_button", "Continue ->", class = "btn-primary")
-    )
   )
 )
