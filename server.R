@@ -44,6 +44,9 @@ function(input, output, session) {
   observeEvent(input$to_sa_button5, {
     updateTabsetPanel(session, "main_tabs", selected = "sa_panel_5")
   })
+  observeEvent(input$to_sa_button6, {
+    updateTabsetPanel(session, "main_tabs", selected = "sa_panel_6")
+  })
   
   # ===================================================================
   # ========= DYNAMIC HOUSEHOLD COMPOSITION LOGIC =====================
@@ -1342,7 +1345,7 @@ function(input, output, session) {
                  
                  br(),
                  div(align="center",
-                     actionButton("to_summary_button", "Continue with Portfolio", class="btn-primary btn-lg", style="margin: 20px 0;")
+                     actionButton("to_sa_button6", "Continue with Portfolio", class="btn-primary btn-lg", style="margin: 20px 0;")
                  )
           ),
           
@@ -1423,6 +1426,341 @@ function(input, output, session) {
     )
   })
   
+  # This UI placeholder now just creates the box where the text will go.
+  # ========= VERSION 5 (MENU BUILDER) - NEW =========
   
+  output$sa_ui_placeholder6 <- renderUI({
+    
+    # Gatekeeper
+    req(input$num_cars)
+    
+    # Current car details for display
+    current_cars <- if(input$num_cars != "0") {
+      cars_count <- switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4)
+      paste0("Currently own ", input$num_cars, " car", if(cars_count > 1) "s" else "")
+    } else {
+      "Currently car-free"
+    }
+    
+    # Cost calculation function
+    cost_func <- function(fuel, mileage) {
+      base_costs <- list("Petrol"=150*1.25, "Diesel"=160*1.25, "Fully Electric"=80, "Plug-in Hybrid"=120*1.15)
+      parking <- switch(mileage, "0-2,000"=5, "2,001-5,000"=10, "5,001-10,000"=15, "10,001+"=20, 0)
+      multiplier <- switch(mileage, "0-2,000"=0.6, "2,001-5,000"=1.0, "5,001-10,000"=1.5, "10,001+"=2.2, 1)
+      return(round((base_costs[[fuel]] * multiplier) + (parking * 1.20), 0))
+    }
+    
+    # Service option creator
+    create_service_option <- function(option_id, title, price, description, is_default = FALSE) {
+      div(
+        class = paste("service-option", if(is_default) "default-option"),
+        id = option_id,
+        onclick = paste0("Shiny.setInputValue('", option_id, "_clicked', Math.random())"),
+        style = "cursor: pointer; margin-bottom: 8px;",
+        fluidRow(
+          column(8,
+                 div(style = "display: flex; align-items: center;",
+                     h6(title, style = "margin: 0; flex-grow: 1;"),
+                     if(is_default) span(class = "default-badge", "Current")
+                 ),
+                 p(description, class = "service-description", style = "margin: 2px 0 0 0; color: #666; font-size: 0.85em;")
+          ),
+          column(4, align = "right",
+                 span(class = "service-price", paste0("£", price, "/month"), style = "font-size: 1.1em; font-weight: bold; color: #28a745;")
+          )
+        )
+      )
+    }
+    
+    # Fleet choice section creator
+    create_fleet_choice <- function(choice_title, choice_description, choice_id, service_options, is_current = FALSE) {
+      tagList(
+        div(class = paste("fleet-choice-header", if(is_current) "current-choice"),
+            onclick = paste0("$('#", choice_id, "_services').toggle(); $(this).toggleClass('active');"),
+            style = "cursor: pointer; padding: 20px; margin: 15px 0; border-radius: 8px; background: linear-gradient(135deg, #495057 0%, #343a40 100%); color: white;",
+            fluidRow(
+              column(10,
+                     h4(choice_title, style = "margin: 0;"),
+                     p(choice_description, style = "margin: 5px 0 0 0; opacity: 0.9;")
+              ),
+              column(2, align = "right",
+                     if(is_current) span("CURRENT", style = "background: #ffc107; color: #000; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; font-weight: bold;"),
+                     br(),
+                     span("Click to explore", style = "font-size: 0.8em; opacity: 0.8;")
+              )
+            )
+        ),
+        div(id = paste0(choice_id, "_services"), class = "fleet-services", style = "display: none; background: #f8f9fa; padding: 20px; border-radius: 0 0 8px 8px; margin-bottom: 20px;",
+            service_options
+        )
+      )
+    }
+    
+    # Calculate current ownership cost
+    current_cost <- if(input$num_cars != "0") {
+      total_cost <- 0
+      cars_count <- switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4)
+      for(i in 1:cars_count) {
+        if(!is.null(input[[paste0("car", i, "_fuel")]]) && !is.null(input[[paste0("car", i, "_mileage")]])) {
+          total_cost <- total_cost + cost_func(input[[paste0("car", i, "_fuel")]], input[[paste0("car", i, "_mileage")]])
+        }
+      }
+      total_cost
+    } else {
+      0
+    }
+    
+    # Basket display
+    output$fleet_basket_display <- renderUI({
+      div(class = "fleet-basket",
+          h5("Selected Fleet Strategy", style = "margin-bottom: 10px;"),
+          div(id = "fleet-basket-items", style = "min-height: 40px;",
+              p("Select your preferred fleet choice below", style = "color: #666; font-style: italic;")
+          ),
+          hr(style = "margin: 10px 0;"),
+          div(class = "basket-total",
+              span("Monthly Total: ", style = "font-weight: bold;"),
+              span(id = "fleet-total-amount", "£0", style = "font-weight: bold; font-size: 1.3em; color: #28a745;")
+          )
+      )
+    })
+    
+    # Main UI
+    tagList(
+      tags$style(HTML("
+        .fleet-choice-header { transition: all 0.3s ease; }
+        .fleet-choice-header:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .fleet-choice-header.active { background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important; }
+        .fleet-choice-header.current-choice { background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important; }
+        
+        .service-option { 
+          background: #fff; 
+          border: 1px solid #e9ecef; 
+          border-radius: 6px; 
+          padding: 12px; 
+          transition: all 0.15s ease;
+        }
+        .service-option:hover { 
+          border-color: #007bff; 
+          box-shadow: 0 2px 8px rgba(0,123,255,0.1); 
+          transform: translateY(-1px);
+        }
+        .service-option.selected { 
+          border-color: #28a745; 
+          background-color: #f8fff9;
+          box-shadow: 0 0 0 2px rgba(40,167,69,0.2);
+        }
+        .service-option.default-option { background-color: #f8f9fa; }
+        
+        .default-badge { 
+          background: #007bff; color: white; padding: 2px 6px; border-radius: 10px; font-size: 0.7em; margin-left: 8px;
+        }
+        
+        .sticky-sidebar {
+          position: sticky;
+          top: 20px;
+          height: fit-content;
+          max-height: calc(100vh - 40px);
+          overflow-y: auto;
+        }
+        
+        .scenario-info {
+          background-color: #f8f9fa; 
+          border: 1px solid #dee2e6; 
+          padding: 20px; 
+          border-radius: 8px;
+          margin-bottom: 20px;
+        }
+        
+        .fleet-basket {
+          background-color: #fff3cd; 
+          border: 1px solid #ffeaa7; 
+          padding: 20px; 
+          border-radius: 8px;
+        }
+        
+        @media (max-width: 768px) {
+          .sticky-sidebar {
+            position: static;
+            margin-bottom: 20px;
+          }
+        }
+      ")),
+      
+      div(class = "container-fluid", style = "max-width: 1200px; margin-top: 20px;",
+          fluidRow(
+            # Main content
+            column(8,
+                   div(style="text-align: center; margin-bottom: 30px;",
+                       h2("Your Fleet Strategy for 2030"),
+                       p(current_cars, style = "font-size: 1.1em; color: #495057;"),
+                       p("Given the new scenario conditions, what would be your household's best car ownership strategy? Click each option to explore the services you'd combine with that fleet choice.")
+                   ),
+                   
+                   # KEEP ALL CURRENT CARS
+                   if(input$num_cars != "0") {
+                     create_fleet_choice(
+                       "Keep All Current Cars",
+                       paste0("Maintain ownership of your existing ", input$num_cars, " car", if(as.numeric(input$num_cars) > 1) "s" else "", " with complementary services"),
+                       "keep_all",
+                       tagList(
+                         h6("Your Current Fleet Cost:", style = "color: #495057; margin-bottom: 15px;"),
+                         create_service_option("keep_basic", "Basic Ownership", current_cost, "Continue with current setup under new scenario conditions", is_default = TRUE),
+                         create_service_option("keep_plus_carclub", "Ownership + Car Club", current_cost + 35, "Keep cars for regular use, add car club for city trips/backup"),
+                         create_service_option("keep_plus_services", "Enhanced Ownership Package", current_cost + 45, "Premium insurance, breakdown cover, plus mobility services"),
+                         
+                         br(),
+                         h6("Why keep all cars?", style = "color: #495057; margin: 15px 0 10px 0;"),
+                         p("• Immediate availability when needed", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
+                         p("• Personal space and belongings", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
+                         p("• No booking or sharing hassles", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
+                         p("• Flexibility for spontaneous trips", style = "margin: 2px 0; font-size: 0.9em; color: #666;")
+                       ),
+                       is_current = TRUE
+                     )
+                   },
+                   
+                   # REDUCE CARS
+                   if(input$num_cars != "0" && as.numeric(input$num_cars) > 1) {
+                     create_fleet_choice(
+                       "Reduce to Fewer Cars",
+                       "Give up one or more cars and replace with shared mobility services",
+                       "reduce_cars",
+                       tagList(
+                         h6("Which car would you give up first?", style = "color: #495057; margin-bottom: 15px;"),
+                         if(input$num_cars == "2") {
+                           tagList(
+                             create_service_option("reduce_keep_car1", paste("Keep Car 1:", input$car1_fuel, input$car1_type), 
+                                                   cost_func(input$car1_fuel, input$car1_mileage) + 50, 
+                                                   "Keep primary car, replace second with car club + public transport"),
+                             if(!is.null(input$car2_fuel)) {
+                               create_service_option("reduce_keep_car2", paste("Keep Car 2:", input$car2_fuel, input$car2_type), 
+                                                     cost_func(input$car2_fuel, input$car2_mileage) + 50, 
+                                                     "Keep second car, replace primary with shared services")
+                             }
+                           )
+                         } else {
+                           create_service_option("reduce_to_one", "Reduce to One Car", 
+                                                 min(sapply(1:as.numeric(input$num_cars), function(i) {
+                                                   if(!is.null(input[[paste0("car", i, "_fuel")]])) cost_func(input[[paste0("car", i, "_fuel")]], input[[paste0("car", i, "_mileage")]]) else 150
+                                                 }), na.rm = TRUE) + 60, 
+                                                 "Keep most efficient car, comprehensive mobility services for other needs")
+                         },
+                         
+                         br(),
+                         h6("What would replace the car(s)?", style = "color: #495057; margin: 15px 0 10px 0;"),
+                         p("• Guaranteed car club access", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
+                         p("• Enhanced public transport pass", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
+                         p("• E-bike and micro-mobility options", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
+                         p("• Taxi/ride-hailing budget included", style = "margin: 2px 0; font-size: 0.9em; color: #666;")
+                       )
+                     )
+                   },
+                   
+                   # GO CAR-FREE
+                   if(input$num_cars != "0") {
+                     create_fleet_choice(
+                       "Go Completely Car-Free",
+                       "Give up all car ownership and rely entirely on shared mobility",
+                       "go_carfree",
+                       tagList(
+                         h6("Complete mobility package:", style = "color: #495057; margin-bottom: 15px;"),
+                         create_service_option("carfree_basic", "Essential Car-Free Package", 85, "Car club + public transport + basic e-bike access"),
+                         create_service_option("carfree_premium", "Premium Car-Free Package", 120, "Guaranteed car access + comprehensive PT + full mobility services"),
+                         create_service_option("carfree_luxury", "Car-Free with On-Demand", 180, "All services plus taxi/ride-hailing allowance for convenience"),
+                         
+                         br(),
+                         h6("This works best if you:", style = "color: #495057; margin: 15px 0 10px 0;"),
+                         p("• Live in well-connected urban area", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
+                         p("• Have predictable travel patterns", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
+                         p("• Don't need cars for work/cargo", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
+                         p("• Value cost savings over convenience", style = "margin: 2px 0; font-size: 0.9em; color: #666;")
+                       )
+                     )
+                   },
+                   
+                   # ADD ANOTHER CAR
+                   create_fleet_choice(
+                     "Add Another Car",
+                     if(input$num_cars == "0") "Get your first car with supporting services" else "Expand fleet to meet growing needs",
+                     "add_car",
+                     tagList(
+                       h6("What type of additional car?", style = "color: #495057; margin-bottom: 15px;"),
+                       create_service_option("add_basic", "Basic Additional Car", 200, "Standard petrol/diesel car for extra capacity"),
+                       create_service_option("add_electric", "Electric Vehicle", 280, "New EV with home charging installation"),
+                       create_service_option("add_specialist", "Specialist Vehicle", 250, "Van, SUV, or other specific-purpose vehicle"),
+                       
+                       br(),
+                       h6("You might need this if:", style = "color: #495057; margin: 15px 0 10px 0;"),
+                       p("• Household size is growing", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
+                       p("• Work requirements have changed", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
+                       p("• Current car(s) insufficient for needs", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
+                       p("• Want different car types for different uses", style = "margin: 2px 0; font-size: 0.9em; color: #666;")
+                     )
+                   ),
+                   
+                   br(),
+                   div(align="center",
+                       actionButton("continue_fleet_button", "Continue with Fleet Strategy", class="btn-primary btn-lg", style="margin: 20px 0;")
+                   )
+            ),
+            
+            # Sticky sidebar
+            column(4, class = "sticky-sidebar",
+                   # Scenario info
+                   div(class = "scenario-info",
+                       h5("Leeds 2030 Scenario:", style = "margin-top: 0;"),
+                       tags$table(
+                         class="table table-sm table-borderless", style="margin-bottom: 0;",
+                         tags$tbody(
+                           tags$tr(tags$td(icon("gas-pump"), " Fuel prices:"), tags$td("+60p/litre")),
+                           tags$tr(tags$td(icon("parking"), " Parking:"), tags$td("+20% permits")),  
+                           tags$tr(tags$td(icon("bus"), " Public transport:"), tags$td("New integrated passes")),
+                           tags$tr(tags$td(icon("share-alt"), " Mobility services:"), tags$td("Expanded car sharing"))
+                         )
+                       )
+                   ),
+                   
+                   # Fleet basket
+                   div(class = "fleet-basket",
+                       uiOutput("fleet_basket_display")
+                   )
+            )
+          )
+      ),
+      
+      # JavaScript for interaction
+      tags$script(HTML("
+        $(document).on('click', '.service-option', function() {
+          var $option = $(this);
+          var $section = $option.closest('.fleet-services');
+          
+          // Only allow one selection per fleet choice section
+          $section.find('.service-option.selected').removeClass('selected');
+          $option.addClass('selected');
+          
+          updateFleetBasket();
+        });
+        
+        function updateFleetBasket() {
+          var selectedOption = $('.service-option.selected');
+          var $basketItems = $('#fleet-basket-items');
+          
+          if (selectedOption.length === 0) {
+            $basketItems.html('<p style=\"color: #666; font-style: italic;\">Select your preferred fleet choice below</p>');
+            $('#fleet-total-amount').text('£0');
+          } else {
+            var title = selectedOption.find('h6').text();
+            var priceText = selectedOption.find('.service-price').text();
+            var price = parseFloat(priceText.replace('£', '').replace('/month', ''));
+            
+            var itemHtml = '<div style=\"padding: 5px 0; font-size: 0.9em;\"><strong>' + title + '</strong></div>';
+            $basketItems.html(itemHtml);
+            $('#fleet-total-amount').text('£' + price);
+          }
+        }
+      "))
+    )
+  })
  
 }

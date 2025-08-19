@@ -476,5 +476,8 @@ fluidPage(
     # =========== Part 3: MENU BASED ===========
     tabPanel("Choices: Version 4: Menu", value = "sa_panel_5", uiOutput("sa_ui_placeholder5")),
     
+    # =========== Part 3B: MENU BASED ===========
+    tabPanel("Choices: Version 5: Different Menu", value = "sa_panel_6", uiOutput("sa_ui_placeholder6")),
+    
   )
 )
