@@ -547,207 +547,362 @@ function(input, output, session) {
   output$sa_ui_placeholder3 <- renderUI({
     
     req(input$num_cars)
-    if (input$num_cars != "0") {
-      req(input$car1_type, input$car1_fuel, input$car1_mileage)
-    }
     
-    # --- Helper function for CAR-OWNING households ---
-    create_vehicle_adaptation_block <- function(car_number, vehicle_type, fuel_type, mileage_val) {
+    # Helper function to create vehicle description from previous inputs
+    create_vehicle_desc <- function(car_num) {
+      fuel_type <- input[[paste0("car", car_num, "_fuel")]]
+      vehicle_type <- input[[paste0("car", car_num, "_type")]]
+      mileage_val <- input[[paste0("car", car_num, "_mileage")]]
       
-      decision_id <- paste0("sa_car", car_number, "_decision")
-      
-      calculate_vehicle_cost <- function(fuel, mileage) {
-        base_costs <- list("Petrol"=150*1.25, "Diesel"=160*1.25, "Fully Electric"=80, "Plug-in Hybrid"=120*1.15)
-        parking <- switch(mileage, "0-2,000"=5, "2,001-5,000"=10, "5,001-10,000"=15, "10,001+"=20, 0)
-        multiplier <- switch(mileage, "0-2,000"=0.6, "2,001-5,000"=1.0, "5,001-10,000"=1.5, "10,001+"=2.2, 1)
-        return(round((base_costs[[fuel]] * multiplier) + (parking * 1.20), 0))
+      if(is.null(fuel_type) || is.null(vehicle_type) || is.null(mileage_val)) {
+        return("Unknown vehicle")
       }
       
-      current_cost <- calculate_vehicle_cost(fuel_type, mileage_val)
-      vehicle_desc_short <- paste(fuel_type, vehicle_type)
-      vehicle_desc <- paste0(tolower(fuel_type), " ", tolower(vehicle_type), " driven approximately ", mileage_val, " miles per year")
+      paste0(tolower(fuel_type), " ", tolower(vehicle_type), " driven approximately ", mileage_val, " miles per year")
+    }
+    
+    # Get number of cars as integer
+    num_cars <- as.integer(gsub("\\+", "", input$num_cars))
+    if(is.na(num_cars)) num_cars <- 0
+    
+    # Alternative vehicle options for non-owned vehicles
+    alternative_options <- data.frame(
+      vehicle_type     = c("Hybrid", "Plug-in Hybrid", "Car-sharing", "Public transport"),
+      description      = c(
+        "A hybrid vehicle option (petrol + electric assist) as an alternative to ownership.",
+        "A plug-in hybrid option (short electric range with petrol backup).",
+        "Access to on-demand car-sharing services (pay-per-use or subscription).",
+        "Use of the public transport network (buses, trams, trains) instead of a private vehicle."
+      ),
+      driving_range_base = c("750 km gasoline", "80 km electric (then petrol)", "Variable — depends on availability", "Network access; not applicable"),
+      refuel_time        = c("5 mins", "Level 2: 6 hrs", "N/A — depends on provider", "N/A"),
+      purchase_price     = c("£53,000", "£58,200", "Pay-per-use / membership fees", "Ticket fares / season pass"),
+      stringsAsFactors = FALSE
+    )
+    
+    # Usage options for dropdown
+    usage_options <- c("Work commuting", "Leisure/Recreation", "Shopping/Errands", "Family transport", "Mixed use")
+    
+    # Function to create clickable row
+    create_vehicle_row <- function(row_id, vehicle_desc, driving_range, price, is_current = FALSE, show_range_dropdown = FALSE) {
       
-      bsCollapse(
-        id = paste0("sa_collapse_", car_number),
-        open = if (car_number == 1) paste0("sa_panel_", car_number) else NULL, 
-        bsCollapsePanel(
-          title = paste0("Choice Task for Vehicle ", car_number, ": Your ", vehicle_desc),
-          value = paste0("sa_panel_", car_number),
-          style = "primary",
-          tags$table(
-            class = "table dce-table",
-            tags$thead(
-              tags$tr(
-                tags$th("Attribute", class = "col-attribute"),
-                tags$th("Package A: Status Quo", class = "col-status-quo"),
-                tags$th("Package B: Modernise", class = "col-modernise"),
-                tags$th("Package C: Go Car-Lite", class = "col-carlite"),
-                tags$th("Package D: Go Car-Free", class = "col-carfree")
-              )
+      row_style <- if(is_current) {
+        "cursor: pointer; transition: all 0.2s; background-color: #e8f4fd; border-left: 5px solid #007bff;"
+      } else {
+        "cursor: pointer; transition: all 0.2s; background-color: #ffffff;"
+      }
+      
+      driving_range_content <- if(show_range_dropdown) {
+        selectInput(selectize = FALSE,
+          paste0("range_", row_id),
+          label = NULL,
+          choices = c("50 km", "100 km", "150 km", "200 km+"),
+          selected = "100 km",
+          width = "100%"
+        )
+      } else {
+        driving_range
+      }
+      
+      tags$tr(
+        id = paste0("row_", row_id),
+        style = row_style,
+        class = "vehicle-row",
+        `data-value` = row_id,
+        onclick = paste0("toggleVehicleRow('", row_id, "')"),
+        
+        # Vehicle type column
+        tags$td(
+          style = "padding: 15px; border: 1px solid #bdc3c7; vertical-align: middle;",
+          tags$div(
+            tags$div(
+              style = "display: flex; align-items: center; margin-bottom: 8px;",
+              tags$div(
+                style = paste0("width: 40px; height: 25px; margin-right: 10px; border-radius: 3px; background-color: ",
+                               if(is_current) "#007bff" else c("#3498db", "#f39c12", "#2ecc71", "#9b59b6")[((as.integer(gsub("\\D", "", row_id)) - 1) %% 4) + 1], ";"),
+                class = "vehicle-icon"
+              ),
+              tags$strong(if(is_current) "Your Current Vehicle" else paste("Alternative", gsub("\\D", "", row_id)))
             ),
-            tags$tbody(
-              tags$tr(
-                tags$td("Owned Vehicle"),
-                tags$td(class="col-status-quo", paste("Keep your", vehicle_desc_short)),
-                tags$td(class="col-modernise", "Replace with a Small EV"),
-                tags$td(class="col-carlite", paste("Keep your", vehicle_desc_short), " and add car-sharing"),
-                tags$td(class="col-carfree", "Dispose of vehicle and use car-sharing")
-              ),
-              tags$tr(
-                tags$td("Availability"),
-                tags$td(class="col-status-quo", "90% available - 10% garage"),
-                tags$td(class="col-modernise", "95% available - 5% garage"),
-                tags$td(class="col-carlite", "Car: 90% + Car-sharing: 99%"),
-                tags$td(class="col-carfree", "Car-sharing: 99%")
-              ),
-              tags$tr(
-                tags$td("Access Time"),
-                tags$td(class="col-status-quo", "Immediately"),
-                tags$td(class="col-modernise", "Immediately"),
-                tags$td(class="col-carlite", "10 minute walk to nearest shared car"),
-                tags$td(class="col-carfree", "10 minute walk to nearest shared car")
-              ),
-              tags$tr(
-                tags$td("Est. Monthly Cost"),
-                tags$td(class="col-status-quo", style="font-weight:bold;", paste0("£", current_cost)),
-                tags$td(class="col-modernise", style="font-weight:bold;", "£165"),
-                tags$td(class="col-carlite", style="font-weight:bold;", paste0("£", current_cost + 25)),
-                tags$td(class="col-carfree", style="font-weight:bold;", "£120")
-              ),
-              tags$tr(
-                tags$td("Your Choice"),
-                tags$td(class="col-status-quo", radioButtons(decision_id, NULL, inline = TRUE, choices = "Status Quo", selected = character(0))),
-                tags$td(class="col-modernise", radioButtons(decision_id, NULL, inline = TRUE, choices = "Modernise", selected = character(0))),
-                tags$td(class="col-carlite", radioButtons(decision_id, NULL, inline = TRUE, choices = "Car-Lite", selected = character(0))),
-                tags$td(class="col-carfree", radioButtons(decision_id, NULL, inline = TRUE, choices = "Car-Free", selected = character(0)))
-              )
+            tags$div(
+              style = "font-size: 0.9em; color: #7f8c8d;",
+              vehicle_desc
             )
+          )
+        ),
+        
+        # Driving range column
+        tags$td(
+          style = "text-align: center; padding: 15px; border: 1px solid #bdc3c7; vertical-align: middle;",
+          driving_range_content
+        ),
+        
+        # Usage column
+        tags$td(
+          style = "text-align: center; padding: 15px; border: 1px solid #bdc3c7; vertical-align: middle;",
+          selectInput(selectize = FALSE,
+            paste0("usage_", row_id),
+            label = NULL,
+            choices = usage_options,
+            selected = usage_options[1],
+            width = "100%"
+          )
+        ),
+        
+        # Usage change column
+        tags$td(
+          style = "text-align: center; padding: 15px; border: 1px solid #bdc3c7; vertical-align: middle;",
+          selectInput(selectize = FALSE,
+            paste0("usage_change_", row_id),
+            label = NULL,
+            choices = c("Increase", "Same", "Decrease"),
+            selected = "Same",
+            width = "100%"
+          )
+        ),
+        
+        # Purchase price column
+        tags$td(
+          style = "text-align: center; padding: 15px; border: 1px solid #bdc3c7; vertical-align: middle; font-weight: bold;",
+          price
+        ),
+        
+        # Choice column with hidden radio button
+        tags$td(
+          style = "text-align: center; padding: 15px; border: 1px solid #bdc3c7; vertical-align: middle;",
+          tags$div(
+            id = paste0("check_", row_id),
+            class = "choice-indicator",
+            style = "width: 30px; height: 30px; border: 3px solid #bdc3c7; border-radius: 50%; margin: 0 auto; transition: all 0.3s;",
+            tags$div(
+              style = "width: 100%; height: 100%; border-radius: 50%; background-color: transparent; transition: all 0.3s;"
+            )
+          ),
+          # Hidden radio button for form submission
+          tags$input(
+            type = "radio",
+            name = "vehicle_choice",
+            value = row_id,
+            style = "display: none;",
+            id = paste0("radio_", row_id)
           )
         )
       )
     }
     
-    # --- NEW: Helper function for ZERO-CAR households ---
-    create_zero_car_dce_block <- function() {
-      bsCollapse(
-        id = "sa_collapse_0", open = "sa_panel_0",
-        bsCollapsePanel(
-          title = "Choice Task for Your Household", value = "sa_panel_0", style = "info",
-          tags$table(
-            class = "table dce-table",
-            tags$thead(
-              tags$tr(
-                tags$th("Attribute", class = "col-attribute"),
-                tags$th("Option A: No Change", class = "col-status-quo"),
-                tags$th("Option B: Add Public Transport", class = "col-modernise"), # Re-using colors
-                tags$th("Option C: Add Car Sharing", class = "col-carlite")
-              )
-            ),
-            tags$tbody(
-              tags$tr(
-                tags$td("Primary Mode"),
-                tags$td(class="col-status-quo", "Current travel patterns"),
-                tags$td(class="col-modernise", "Leeds Travel Pass"),
-                tags$td(class="col-carlite", "INFUZE_TRIAL Car Sharing")
-              ),
-              tags$tr(
-                tags$td("Availability"),
-                tags$td(class="col-status-quo", "N/A"),
-                tags$td(class="col-modernise", "Scheduled"),
-                tags$td(class="col-carlite", "99%")
-              ),
-              tags$tr(
-                tags$td("Access Time"),
-                tags$td(class="col-status-quo", "N/A"),
-                tags$td(class="col-modernise", "5-minute walk to stop"),
-                tags$td(class="col-carlite", "5-minute walk to vehicle")
-              ),
-              tags$tr(
-                tags$td("Est. Monthly Cost"),
-                tags$td(class="col-status-quo", style="font-weight:bold;", "£0"),
-                tags$td(class="col-modernise", style="font-weight:bold;", "£50"),
-                tags$td(class="col-carlite", style="font-weight:bold;", "£25")
-              ),
-              tags$tr(
-                tags$td("Your Choice"),
-                tags$td(class="col-status-quo", radioButtons("sa4_0_car_decision", NULL, inline = TRUE, choices = "No changes", selected = character(0))),
-                tags$td(class="col-modernise", radioButtons("sa4_0_car_decision", NULL, inline = TRUE, choices = "Add PT", selected = character(0))),
-                tags$td(class="col-carlite", radioButtons("sa4_0_car_decision", NULL, inline = TRUE, choices = "Add Car-sharing", selected = character(0)))
-              )
-            )
-          )
+    # Generate table rows
+    table_rows <- list()
+    
+    # Add current vehicles first
+    if(num_cars > 0) {
+      for(i in 1:min(num_cars, 4)) {
+        vehicle_desc <- create_vehicle_desc(i)
+        # Use placeholder values for current vehicles
+        table_rows[[length(table_rows) + 1]] <- create_vehicle_row(
+          row_id = paste0("current_", i),
+          vehicle_desc = vehicle_desc,
+          driving_range = "Current range",
+          price = "Owned",
+          is_current = TRUE,
+          show_range_dropdown = FALSE
         )
+      }
+    }
+    
+    # Add alternative vehicles
+    for(i in 1:nrow(alternative_options)) {
+      show_dropdown <- (i == 1) # First alternative gets dropdown
+      table_rows[[length(table_rows) + 1]] <- create_vehicle_row(
+        row_id = paste0("alt_", i),
+        vehicle_desc = alternative_options$description[i],
+        driving_range = alternative_options$driving_range_base[i],
+        price = alternative_options$purchase_price[i],
+        is_current = FALSE,
+        show_range_dropdown = show_dropdown
       )
     }
     
-    # --- Assemble the UI ---
+    # Main UI
     tagList(
-      tags$style(HTML("
-        .dce-table { border-collapse: separate; border-spacing: 0; width: 100%; }
-        .dce-table th, .dce-table td { text-align: center; vertical-align: middle !important; padding: 12px 8px !important; border-top: 1px solid #ddd; }
-        .dce-table thead th { color: white; font-size: 1.1em; border: none; }
-        .dce-table tbody td:first-child { text-align: left; font-weight: bold; background-color: #f8f9fa; }
-        .dce-table .radio { justify-content: center; display: flex; }
-        .radio .form-check-input { transform: scale(1.5); }
-        .col-attribute { background-color: #dc3545 !important; }
-        .col-status-quo { background-color: #007bff !important; }
-        .col-modernise { background-color: #28a745 !important; }
-        .col-carlite { background-color: #ffc107 !important; }
-        .col-carfree { background-color: #fd7e14 !important; color: #343a40 !important; }
-        .dce-table td.col-status-quo { background-color: #e6f0ff !important; }
-        .dce-table td.col-modernise { background-color: #eaf6ec !important; }
-        .dce-table td.col-carlite { background-color: #fff9e8 !important; }
-        .dce-table td.col-carfree { background-color: #fff2e8 !important; }
+      # Custom CSS and JavaScript
+      tags$head(
+        tags$style(HTML("
+        .choice-table {
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          border-radius: 8px;
+          overflow: hidden;
+          width: 100%;
+          border-collapse: separate;
+          border-spacing: 0;
+        }
+        
+        .vehicle-row:hover {
+          background-color: #f0f8ff !important;
+          transform: translateY(-1px);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .vehicle-row.selected {
+          background-color: #d4edda !important;
+          border-left: 5px solid #28a745 !important;
+        }
+        
+        .vehicle-row.selected:hover {
+          background-color: #d4edda !important;
+        }
+        
+        .choice-indicator {
+          transition: all 0.3s ease;
+        }
+        
+        .selected .choice-indicator {
+          border-color: #28a745 !important;
+          background-color: #28a745;
+        }
+        
+        .selected .choice-indicator > div {
+          background-color: white !important;
+          transform: scale(0.4);
+        }
+        
+        .vehicle-icon {
+          border: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        .choice-table th {
+          background-color: #2c3e50;
+          color: white;
+          text-align: center;
+          padding: 15px 12px;
+          border: 1px solid #34495e;
+          font-weight: 600;
+        }
+        
+        .choice-table td {
+          border: 1px solid #bdc3c7;
+        }
+        
+        .selectize-input {
+          min-height: 35px;
+          border: 1px solid #ced4da;
+        }
       ")),
       
-      wellPanel(
-        style = "background-color: white; border: 2px solid black;",
-        tags$table(style = "width: 100%; border-collapse: collapse;",
-                   tags$thead(tags$tr(
-                     tags$th(style="border:1px solid #ddd; padding:8px; background-color:#f2f2f2; width:50%;", "Scenario Changes"),
-                     tags$th(style="border:1px solid #ddd; padding:8px; background-color:#f2f2f2; width:50%;", "Cost Estimates")
-                   )),
-                   tags$tbody(
-                     tags$tr(
-                       tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Fuel prices: "), "+60p per litre"),
-                       tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Current monthly cost: £"), textOutput("current_monthly_formatted", inline=TRUE))
-                     ),
-                     tags$tr(
-                       tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Parking permit costs: "), "+20%"),
-                       tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Current annual cost: £"), textOutput("current_annual_formatted", inline=TRUE))
-                     ),
-                     tags$tr(
-                       tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Public Transport: "), "A new 'Leeds Travel Pass' for £50/month"),
-                       tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Estimated new monthly cost: £"), textOutput("new_monthly_formatted", inline=TRUE), textOutput("monthly_change", inline=TRUE))
-                     ),
-                     tags$tr(
-                       tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Car Club: "), "New sharing models available"),
-                       tags$td(style="border:1px solid #ddd; padding:8px; vertical-align:top;", strong("Estimated new annual cost: £"), textOutput("new_annual_formatted", inline=TRUE), textOutput("annual_change", inline=TRUE))
-                     )
-                   )
+      tags$script(HTML("
+        function toggleVehicleRow(rowId) {
+          var row = $('#row_' + rowId);
+          var radio = $('#radio_' + rowId);
+          
+          // Check if row is currently selected
+          if (row.hasClass('selected')) {
+            // Deselect: remove selection and clear radio button
+            row.removeClass('selected');
+            radio.prop('checked', false);
+            Shiny.setInputValue('vehicle_choice', null);
+          } else {
+            // Select: remove selection from all rows first
+            $('.vehicle-row').removeClass('selected');
+            
+            // Add selection to clicked row
+            row.addClass('selected');
+            radio.prop('checked', true);
+            
+            // Update Shiny input
+            Shiny.setInputValue('vehicle_choice', rowId);
+          }
+          
+          // Trigger change event
+          radio.trigger('change');
+        }
+      "))
+      ),
+      
+      # Instructions
+      tags$div(
+        style = "margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-left: 4px solid #007bff; border-radius: 4px;",
+        tags$h4("Vehicle Ownership and Usage Assessment", style = "margin-top: 0; color: #2c3e50;"),
+        tags$p("Please review your current vehicle(s) and alternative options. Click on any row to select your preferred choice for the upcoming period. Consider how your usage patterns might change."),
+        div(class = "ethics-note",
+            p("TODO: Fully describe attributes, add pictures, and expand Car Sharing")
+        ),
+      ),
+      
+      # Choice table
+      tags$div(
+        style = "margin: 20px 0; overflow-x: auto;",
+        tags$table(
+          class = "table choice-table",
+          
+          # Header
+          tags$thead(
+            tags$tr(
+              tags$th("Vehicle Details", style = "min-width: 250px;"),
+              tags$th("Driving Range", style = "min-width: 150px;"),
+              tags$th("How do you use this vehicle", style = "min-width: 180px;"),
+              tags$th("How would you change your use", style = "min-width: 180px;"),
+              tags$th("Monthly Cost", style = "min-width: 100px;"),
+              tags$th("Your Choice", style = "min-width: 80px;")
+            )
+          ),
+          
+          # Body
+          tags$tbody(
+            table_rows
+          )
         )
       ),
       
-      h3("Please choose the package you prefer most for each of your vehicles"),
+      # Validation message
+      conditionalPanel(
+        condition = "typeof input.vehicle_choice === 'undefined' || input.vehicle_choice === null || input.vehicle_choice === ''",
+        tags$div(
+          style = "margin: 15px 0; padding: 10px; background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px; color: #856404;",
+          tags$i(class = "fa fa-exclamation-triangle", style = "margin-right: 8px;"),
+          "Please select one vehicle option by clicking on a row before continuing."
+        )
+      ),
       
-      if (input$num_cars == "0") {
-        create_zero_car_dce_block() # Call the new zero-car function
-      } else {
-        lapply(1:switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4), function(i) {
-          if (!is.null(input[[paste0("car", i, "_type")]])) {
-            create_vehicle_adaptation_block(i, input[[paste0("car", i, "_type")]], 
-                                            input[[paste0("car", i, "_fuel")]], 
-                                            input[[paste0("car", i, "_mileage")]])
-          }
-        })
-      },
+      # Action buttons
+      tags$div(
+        style = "margin: 30px 0; text-align: center;",
+        actionButton(
+          "to_sa_button4", 
+          "Continue to Next Section",
+          class = "btn btn-success btn-lg",
+          style = "padding: 12px 30px; font-size: 16px;"
+        )
+      ),
       
-      hr(), 
-      actionButton("to_sa_button4", "Continue", class = "btn-success btn-lg")
+      # Debug output (remove in production)
+      conditionalPanel(
+        condition = "false", # Set to "true" for debugging
+        tags$div(
+          style = "margin-top: 20px; padding: 10px; background-color: #f8f9fa; border-radius: 4px;",
+          tags$h5("Debug Info:"),
+          tags$p("Selected choice: ", textOutput("debug_choice", inline = TRUE)),
+          tags$p("Number of cars: ", textOutput("debug_num_cars", inline = TRUE))
+        )
+      )
     )
   })
-    
   
+  # Debug outputs (optional)
+  output$debug_choice <- renderText({
+    if(is.null(input$vehicle_choice)) {
+      "None selected"
+    } else {
+      input$vehicle_choice
+    }
+  })
+  
+  output$debug_num_cars <- renderText({
+    if(is.null(input$num_cars)) {
+      "Not set"
+    } else {
+      input$num_cars
+    }
+  })
   
   # ========= VERSION 4 =========
   output$sa_ui_placeholder4 <- renderUI({
