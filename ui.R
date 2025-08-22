@@ -364,7 +364,9 @@ fluidPage(
                 selectInput("car1_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
                 selectInput("car1_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
                 selectInput("car1_mileage", "Approx. Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+")),
-                selectInput("car1_age", "How long have you owned this vehicle?", choices = c("<1 year", "1-2 years", "More than 2 years"))
+                selectInput("car1_age", "How long have you owned this vehicle?", choices = c("<1 year", "1-2 years", "More than 2 years")),
+                selectInput("car1_purpose", "What would you say is the primary way you use this vehicle?", 
+                            choices = c("Work commuting", "Leisure/Recreation", "Shopping/Errands", "Family transport", "Mixed use"))
               )
             )
           ),
@@ -380,7 +382,9 @@ fluidPage(
                 selectInput("car2_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
                 selectInput("car2_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
                 selectInput("car2_mileage", "Approx. Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+")),
-                selectInput("car2_age", "How long have you owned this vehicle?", choices = c("<1 year", "1-2 years", "More than 2 years"))
+                selectInput("car2_age", "How long have you owned this vehicle?", choices = c("<1 year", "1-2 years", "More than 2 years")),
+                selectInput("car2_purpose", "What would you say is the primary way you use this vehicle?", 
+                            choices = c("Work commuting", "Leisure/Recreation", "Shopping/Errands", "Family transport", "Mixed use"))
               )
             )
           ),
@@ -396,7 +400,9 @@ fluidPage(
                 selectInput("car3_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
                 selectInput("car3_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
                 selectInput("car3_mileage", "Approx. Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+")),
-                selectInput("car3_age", "How long have you owned this vehicle?", choices = c("<1 year", "1-2 years", "More than 2 years"))
+                selectInput("car3_age", "How long have you owned this vehicle?", choices = c("<1 year", "1-2 years", "More than 2 years")),
+                selectInput("car3_purpose", "What would you say is the primary way you use this vehicle?", 
+                            choices = c("Work commuting", "Leisure/Recreation", "Shopping/Errands", "Family transport", "Mixed use"))
               )
             )
           ),
@@ -412,7 +418,9 @@ fluidPage(
                 selectInput("car4_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
                 selectInput("car4_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
                 selectInput("car4_mileage", "Approx. Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+")),
-                selectInput("car4_age", "How long have you owned this vehicle?", choices = c("<1 year", "1-2 years", "More than 2 years"))
+                selectInput("car4_age", "How long have you owned this vehicle?", choices = c("<1 year", "1-2 years", "More than 2 years")),
+                selectInput("car4_purpose", "What would you say is the primary way you use this vehicle?", 
+                            choices = c("Work commuting", "Leisure/Recreation", "Shopping/Errands", "Family transport", "Mixed use"))
               )
             )
           ),

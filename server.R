@@ -303,7 +303,7 @@ function(input, output, session) {
   })
   
   
-  # ========= VERSION 2 =========
+  # ========= VERSION 1: Old CE =========
   output$sa_ui_placeholder2 <- renderUI({
     
     req(input$num_cars)
@@ -543,368 +543,285 @@ function(input, output, session) {
     
   
   
-  # ========= VERSION 3 =========
+  # ========= VERSION 2: New menu =========
+  # Move the dynamic price output OUTSIDE of the renderUI
+  output$dynamic_price_alt_1 <- renderText({
+    calculate_new_car_cost()
+  })
+  
+  # Improve the reactive to be more robust
+  calculate_new_car_cost <- reactive({
+    # Default cost if no selections made
+    base_cost <- 300
+    
+    # Get the current selections for the new car configurator
+    car_type <- input[["sa_alt_1_replace_type"]]
+    fuel_type <- input[["sa_alt_1_replace_fuel"]]
+    mileage <- input[["sa_alt_1_replace_mileage"]]
+    
+    # Return base cost if any selection is missing
+    if (is.null(car_type) || is.null(fuel_type) || is.null(mileage)) {
+      return(paste0("£", base_cost))
+    }
+    
+    # Cost modifiers based on selections
+    type_cost <- switch(car_type,
+                        "Car" = 0,
+                        "Van" = 50,
+                        "Motorbike" = -100,
+                        0)
+    
+    fuel_cost <- switch(fuel_type,
+                        "Petrol" = 0,
+                        "Diesel" = 20,
+                        "Fully Electric" = 80,
+                        "Plug-in Hybrid" = 60,
+                        0)
+    
+    mileage_cost <- switch(mileage,
+                           "0-2,000" = -50,
+                           "2,001-5,000" = 0,
+                           "5,001 - 10,000" = 40,
+                           "10,001+" = 80,
+                           0)
+    
+    # Calculate total cost
+    total_cost <- base_cost + type_cost + fuel_cost + mileage_cost
+    
+    # Return formatted cost
+    return(paste0("£", total_cost))
+  })
+  
   output$sa_ui_placeholder3 <- renderUI({
     
     req(input$num_cars)
     
-    # Helper function to create vehicle description from previous inputs
     create_vehicle_desc <- function(car_num) {
-      fuel_type <- input[[paste0("car", car_num, "_fuel")]]
-      vehicle_type <- input[[paste0("car", car_num, "_type")]]
-      mileage_val <- input[[paste0("car", car_num, "_mileage")]]
-      
-      if(is.null(fuel_type) || is.null(vehicle_type) || is.null(mileage_val)) {
-        return("Unknown vehicle")
-      }
-      
-      paste0(tolower(fuel_type), " ", tolower(vehicle_type), " driven approximately ", mileage_val, " miles per year")
+      fuel <- input[[paste0("car", car_num, "_fuel")]]; type <- input[[paste0("car", car_num, "_type")]]
+      if (is.null(fuel) || is.null(type)) return("Unknown Vehicle")
+      paste0(tolower(fuel), " ", tolower(type))
     }
     
-    # Get number of cars as integer
+    # --- Define all available modes with numeric costs ---
+    modes <- list()
     num_cars <- as.integer(gsub("\\+", "", input$num_cars))
-    if(is.na(num_cars)) num_cars <- 0
+    if (is.na(num_cars)) num_cars <- 0
     
-    # Alternative vehicle options for non-owned vehicles
-    alternative_options <- data.frame(
-      vehicle_type     = c("Hybrid", "Plug-in Hybrid", "Car-sharing", "Public transport"),
-      description      = c(
-        "A hybrid vehicle option (petrol + electric assist) as an alternative to ownership.",
-        "A plug-in hybrid option (short electric range with petrol backup).",
-        "Access to on-demand car-sharing services (pay-per-use or subscription).",
-        "Use of the public transport network (buses, trams, trains) instead of a private vehicle."
-      ),
-      driving_range_base = c("750 km gasoline", "80 km electric (then petrol)", "Variable — depends on availability", "Network access; not applicable"),
-      refuel_time        = c("5 mins", "Level 2: 6 hrs", "N/A — depends on provider", "N/A"),
-      purchase_price     = c("£53,000", "£58,200", "Pay-per-use / membership fees", "Ticket fares / season pass"),
-      stringsAsFactors = FALSE
-    )
+    if (num_cars > 0) {
+      for (i in 1:min(num_cars, 4)) {
+        modes[[length(modes) + 1]] <- list(id = paste0("current_", i), title = paste("Your", create_vehicle_desc(i)), icon = "car-side", is_current = TRUE,
+                                           access = "Immediate, 24/7 at home", availability = "Very High (99% success rate)", cost_val = 350)
+      }
+    }
     
-    # Usage options for dropdown
-    usage_options <- c("Work commuting", "Leisure/Recreation", "Shopping/Errands", "Family transport", "Mixed use")
+    modes[[length(modes) + 1]] <- list(id = "alt_1", title = "A New Configurable Car", icon = "car-new", is_current = FALSE, is_configurable = TRUE,
+                                       access = "Immediate, 24/7 at home", availability = "Highest (Brand New)", cost_val = NULL) # Cost is dynamic
     
-    # Function to create clickable row
-    create_vehicle_row <- function(row_id, vehicle_desc, driving_range, price, is_current = FALSE, show_range_dropdown = FALSE) {
+    modes[[length(modes) + 1]] <- list(id = "car_club", title = "Car Club Membership", icon = "cars", is_current = FALSE,
+                                       access = "Within a 10 min walk", availability = "High (95% success rate)", cost_val = 60)
+    
+    modes[[length(modes) + 1]] <- list(id = "public_transport", title = "Public Transport Pass", icon = "bus-alt", is_current = FALSE,
+                                       access = "Within a 5 min walk", availability = "Medium (90% success rate)", cost_val = 75)
+    
+    # --- Function to generate a single row in the allocation table ---
+    create_allocation_row <- function(mode, initial_share) {
+      row_class <- if (mode$is_current) "allocation-row current-vehicle-row" else "allocation-row"
       
-      row_style <- if(is_current) {
-        "cursor: pointer; transition: all 0.2s; background-color: #e8f4fd; border-left: 5px solid #007bff;"
+      # Handle cost display (dynamic vs. static)
+      cost_display <- if (is.null(mode$cost_val)) {
+        # The dynamic cost output is wrapped in a span with a specific ID for JS to find
+        tags$span(id="dynamic_cost_display", textOutput("dynamic_price_alt_1", inline = TRUE))
       } else {
-        "cursor: pointer; transition: all 0.2s; background-color: #ffffff;"
+        paste0("£", mode$cost_val)
       }
       
-      driving_range_content <- if(show_range_dropdown) {
-        selectInput(selectize = FALSE,
-          paste0("range_", row_id),
-          label = NULL,
-          choices = c("50 km", "100 km", "150 km", "200 km+"),
-          selected = "100 km",
-          width = "100%"
+      title_cell_content <- if (!is.null(mode$is_configurable) && mode$is_configurable) {
+        tags$div(
+          tags$div(style = "display: flex; align-items: center; margin-bottom: 8px;", icon(mode$icon, class = "fa-2x", style="margin-right:15px;"), tags$strong(mode$title)),
+          tags$div(style = "padding: 8px; border-radius: 6px; margin-top: 8px; background-color: #f8f9fa;",
+                   selectInput("sa_alt_1_replace_type", label = "Type:", choices = c("Car", "Van", "Motorbike"), width = "100%"),
+                   selectInput("sa_alt_1_replace_fuel", label = "Fuel:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid"), width = "100%"),
+                   selectInput("sa_alt_1_replace_mileage", label = "Mileage:", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"), width = "100%")
+          )
         )
       } else {
-        driving_range
+        tags$div(style = "display: flex; align-items: center;", icon(mode$icon, class = "fa-2x", style="margin-right:15px;"), tags$strong(mode$title))
       }
       
       tags$tr(
-        id = paste0("row_", row_id),
-        style = row_style,
-        class = "vehicle-row",
-        `data-value` = row_id,
-        onclick = paste0("toggleVehicleRow('", row_id, "')"),
-        
-        # Vehicle type column
-        tags$td(
-          style = "padding: 15px; border: 1px solid #bdc3c7; vertical-align: middle;",
-          tags$div(
-            tags$div(
-              style = "display: flex; align-items: center; margin-bottom: 8px;",
-              tags$div(
-                style = paste0("width: 40px; height: 25px; margin-right: 10px; border-radius: 3px; background-color: ",
-                               if(is_current) "#007bff" else c("#3498db", "#f39c12", "#2ecc71", "#9b59b6")[((as.integer(gsub("\\D", "", row_id)) - 1) %% 4) + 1], ";"),
-                class = "vehicle-icon"
-              ),
-              tags$strong(if(is_current) "Your Current Vehicle" else paste("Alternative", gsub("\\D", "", row_id)))
-            ),
-            tags$div(
-              style = "font-size: 0.9em; color: #7f8c8d;",
-              vehicle_desc
-            )
-          )
-        ),
-        
-        # Driving range column
-        tags$td(
-          style = "text-align: center; padding: 15px; border: 1px solid #bdc3c7; vertical-align: middle;",
-          driving_range_content
-        ),
-        
-        # Usage column
-        tags$td(
-          style = "text-align: center; padding: 15px; border: 1px solid #bdc3c7; vertical-align: middle;",
-          selectInput(selectize = FALSE,
-            paste0("usage_", row_id),
-            label = NULL,
-            choices = usage_options,
-            selected = usage_options[1],
-            width = "100%"
-          )
-        ),
-        
-        # Usage change column
-        tags$td(
-          style = "text-align: center; padding: 15px; border: 1px solid #bdc3c7; vertical-align: middle;",
-          selectInput(selectize = FALSE,
-            paste0("usage_change_", row_id),
-            label = NULL,
-            choices = c("Increase", "Same", "Decrease"),
-            selected = "Same",
-            width = "100%"
-          )
-        ),
-        
-        # Purchase price column
-        tags$td(
-          style = "text-align: center; padding: 15px; border: 1px solid #bdc3c7; vertical-align: middle; font-weight: bold;",
-          price
-        ),
-        
-        # Choice column with hidden radio button
-        tags$td(
-          style = "text-align: center; padding: 15px; border: 1px solid #bdc3c7; vertical-align: middle;",
-          tags$div(
-            id = paste0("check_", row_id),
-            class = "choice-indicator",
-            style = "width: 30px; height: 30px; border: 3px solid #bdc3c7; border-radius: 50%; margin: 0 auto; transition: all 0.3s;",
-            tags$div(
-              style = "width: 100%; height: 100%; border-radius: 50%; background-color: transparent; transition: all 0.3s;"
-            )
-          ),
-          # Hidden radio button for form submission
-          tags$input(
-            type = "radio",
-            name = "vehicle_choice",
-            value = row_id,
-            style = "display: none;",
-            id = paste0("radio_", row_id)
-          )
+        class = row_class,
+        # Add data attributes for JS. Note the special case for the dynamic cost row.
+        `data-cost` = if(!is.null(mode$cost_val)) mode$cost_val else "",
+        `data-dynamic-cost` = if(is.null(mode$cost_val)) "true" else "false",
+        tags$td(style = "vertical-align: middle;", title_cell_content),
+        tags$td(style = "text-align: center; vertical-align: middle; font-size: 0.9em;", mode$access),
+        tags$td(style = "text-align: center; vertical-align: middle; font-size: 0.9em;", mode$availability),
+        tags$td(style = "text-align: center; vertical-align: middle; font-weight: bold; font-size: 1.1em;", cost_display),
+        tags$td(style = "vertical-align: middle; min-width: 350px;",
+                div(class = "slider-container",
+                    span(class="slider-label-left", "I would not use at all"),
+                    div(class = "allocation-cell",
+                        sliderInput(paste0("share_", mode$id), label = NULL, min = 0, max = 100, value = initial_share, step = 5, width = "100%"),
+                        span(class = "share-value-display", paste0(initial_share, "%"))
+                    ),
+                    span(class="slider-label-right", "I would only use this")
+                )
         )
       )
     }
     
-    # Generate table rows
-    table_rows <- list()
+    num_modes <- length(modes); initial_shares <- rep(0, num_modes)
+    if (num_cars > 0) {
+      owned_share <- floor(70 / num_cars); other_share <- floor(30 / (num_modes - num_cars))
+      for(i in 1:num_modes) { initial_shares[i] <- if(modes[[i]]$is_current) owned_share else other_share }
+    } else { initial_shares <- rep(floor(100 / num_modes), num_modes) }
+    initial_shares[num_modes] <- 100 - sum(initial_shares[1:(num_modes-1)])
     
-    # Add current vehicles first
-    if(num_cars > 0) {
-      for(i in 1:min(num_cars, 4)) {
-        vehicle_desc <- create_vehicle_desc(i)
-        # Use placeholder values for current vehicles
-        table_rows[[length(table_rows) + 1]] <- create_vehicle_row(
-          row_id = paste0("current_", i),
-          vehicle_desc = vehicle_desc,
-          driving_range = "Current range",
-          price = "Owned",
-          is_current = TRUE,
-          show_range_dropdown = FALSE
-        )
-      }
-    }
+    table_rows <- lapply(1:num_modes, function(i) create_allocation_row(modes[[i]], initial_shares[i]))
+    slider_ids <- vapply(modes, function(m) paste0("share_", m$id), character(1))
     
-    # Add alternative vehicles
-    for(i in 1:nrow(alternative_options)) {
-      show_dropdown <- (i == 1) # First alternative gets dropdown
-      table_rows[[length(table_rows) + 1]] <- create_vehicle_row(
-        row_id = paste0("alt_", i),
-        vehicle_desc = alternative_options$description[i],
-        driving_range = alternative_options$driving_range_base[i],
-        price = alternative_options$purchase_price[i],
-        is_current = FALSE,
-        show_range_dropdown = show_dropdown
-      )
-    }
-    
-    # Main UI
     tagList(
-      # Custom CSS and JavaScript
-      tags$head(
-        tags$style(HTML("
-        .choice-table {
-          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-          border-radius: 8px;
-          overflow: hidden;
-          width: 100%;
-          border-collapse: separate;
-          border-spacing: 0;
-        }
+      tags$style(HTML("
+      /* --- Existing styles from before --- */
+      .current-vehicle-row td:first-child { position: relative; }
+      .current-vehicle-row td:first-child::before { content: 'OWNED'; position: absolute; top: 0; right: 0; background-color: #ffd700; color: #333; padding: 2px 8px; border-radius: 0 0 0 4px; font-size: 0.7em; font-weight: bold; }
+      .current-vehicle-row td { background-color: #fffef7 !important; }
+      .slider-container { position: relative; padding: 20px 0; }
+      .slider-label-left, .slider-label-right { position: absolute; top: 0; font-size: 0.8em; color: #666; }
+      .slider-label-left { left: 0; } .slider-label-right { right: 0; }
+      .allocation-cell { display: flex; align-items: center; }
+      .allocation-cell .form-group { flex-grow: 1; margin: 0; }
+      .share-value-display { font-weight: bold; font-size: 1.2em; margin-left: 15px; width: 50px; text-align: right; }
+      /* --- New styles for the summary box --- */
+      .summary-box { margin-top: 20px; border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden; }
+      .summary-row { padding: 12px 15px; font-size: 1.1em; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
+      .summary-row.total-percent { background-color: #f8f9fa; border-bottom: 1px solid #dee2e6; transition: all 0.3s ease; }
+      .summary-row.total-cost { background-color: #fff; font-size: 1.2em; }
+      .total-ok { color: #155724; }
+      .total-error { color: #721c24; }
+    ")),
+    
+    tags$script(HTML(paste0("
+      (function() {
+        const slider_ids = ", jsonlite::toJSON(slider_ids), ";
         
-        .vehicle-row:hover {
-          background-color: #f0f8ff !important;
-          transform: translateY(-1px);
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .vehicle-row.selected {
-          background-color: #d4edda !important;
-          border-left: 5px solid #28a745 !important;
-        }
-        
-        .vehicle-row.selected:hover {
-          background-color: #d4edda !important;
-        }
-        
-        .choice-indicator {
-          transition: all 0.3s ease;
-        }
-        
-        .selected .choice-indicator {
-          border-color: #28a745 !important;
-          background-color: #28a745;
-        }
-        
-        .selected .choice-indicator > div {
-          background-color: white !important;
-          transform: scale(0.4);
-        }
-        
-        .vehicle-icon {
-          border: 1px solid rgba(255,255,255,0.3);
-        }
-        
-        .choice-table th {
-          background-color: #2c3e50;
-          color: white;
-          text-align: center;
-          padding: 15px 12px;
-          border: 1px solid #34495e;
-          font-weight: 600;
-        }
-        
-        .choice-table td {
-          border: 1px solid #bdc3c7;
-        }
-        
-        .selectize-input {
-          min-height: 35px;
-          border: 1px solid #ced4da;
-        }
-      ")),
-      
-      tags$script(HTML("
-        function toggleVehicleRow(rowId) {
-          var row = $('#row_' + rowId);
-          var radio = $('#radio_' + rowId);
+        function updateAllDisplays() {
+          let current_sum = 0;
+          let total_cost = 0;
           
-          // Check if row is currently selected
-          if (row.hasClass('selected')) {
-            // Deselect: remove selection and clear radio button
-            row.removeClass('selected');
-            radio.prop('checked', false);
-            Shiny.setInputValue('vehicle_choice', null);
-          } else {
-            // Select: remove selection from all rows first
-            $('.vehicle-row').removeClass('selected');
+          for (const id of slider_ids) {
+            const slider = $('#' + id);
+            if (!slider.length) continue;
             
-            // Add selection to clicked row
-            row.addClass('selected');
-            radio.prop('checked', true);
+            const val = Number(slider.val());
+            current_sum += val;
             
-            // Update Shiny input
-            Shiny.setInputValue('vehicle_choice', rowId);
+            // --- Cost Calculation Logic ---
+            const row = slider.closest('tr');
+            let cost = 0;
+            if (row.data('dynamic-cost') === true) {
+              const cost_text = $('#dynamic_cost_display').text(); // Find the specific output span
+              cost = parseFloat(cost_text.replace(/[^0-9.-]+/g, '')) || 0;
+            } else {
+              cost = Number(row.data('cost')) || 0;
+            }
+            if (!isNaN(cost)) {
+              total_cost += cost * (val / 100);
+            }
+            
+            slider.closest('.allocation-cell').find('.share-value-display').text(val + '%');
           }
           
-          // Trigger change event
-          radio.trigger('change');
+          const summary_div = $('#allocation_summary');
+          const cost_div = $('#cost_summary');
+          
+          summary_div.find('span').text(current_sum + '%');
+          if (current_sum === 100) {
+            summary_div.removeClass('total-error').addClass('total-ok');
+          } else {
+            summary_div.removeClass('total-ok').addClass('total-error');
+          }
+          
+          cost_div.find('span').text('£' + total_cost.toFixed(2));
         }
-      "))
-      ),
-      
-      # Instructions
-      tags$div(
-        style = "margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-left: 4px solid #007bff; border-radius: 4px;",
-        tags$h4("Vehicle Ownership and Usage Assessment", style = "margin-top: 0; color: #2c3e50;"),
-        tags$p("Please review your current vehicle(s) and alternative options. Click on any row to select your preferred choice for the upcoming period. Consider how your usage patterns might change."),
-        div(class = "ethics-note",
-            p("TODO: Fully describe attributes, add pictures, and expand Car Sharing")
+        
+        const handleSliderChange = (event) => {
+          // ... [The existing slider adjustment logic remains the same] ...
+          const source_id = event.name;
+          let total = slider_ids.reduce((sum, id) => sum + Number($('#' + id).val()), 0);
+          let diff = total - 100;
+          if (Math.abs(diff) < 0.1) { updateAllDisplays(); return; }
+          const other_sliders = slider_ids.filter(id => id !== source_id).map(id => $('#' + id));
+          let total_adjustable = other_sliders.reduce((sum, s) => sum + (diff > 0 ? Number(s.val()) : 100 - Number(s.val())), 0);
+          if (total_adjustable > 0) {
+            for (let s of other_sliders) {
+              let current_val = Number(s.val());
+              let capacity = (diff > 0) ? current_val : 100 - current_val;
+              s.val(current_val - ((capacity / total_adjustable) * diff));
+            }
+          }
+          let final_total = 0;
+          for(const id of slider_ids.slice(0, -1)) {
+              let val = Math.round(Number($('#' + id).val()));
+              $('#' + id).val(val);
+              final_total += val;
+          }
+          $('#' + slider_ids[slider_ids.length-1]).val(100 - final_total);
+          // --- End of slider logic ---
+          
+          updateAllDisplays();
+        };
+        
+        $(document).on('shiny:inputchanged', function(event) {
+          if (slider_ids.includes(event.name) || event.name.startsWith('sa_alt_1_replace')) {
+             handleSliderChange(event); // Re-calculate for config changes too
+          }
+        });
+
+        $(document).on('shiny:value', function(event) {
+           if (event.target.id === 'sa_ui_placeholder3') {
+              setTimeout(updateAllDisplays, 150);
+           }
+        });
+
+      })();
+    "))),
+    
+    tags$div(style = "margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-left: 4px solid #007bff; border-radius: 4px;",
+             tags$h4("Allocate Your Household's Trips", style = "margin-top: 0; color: #2c3e50;"),
+             tags$p("Based on the new scenario (higher fuel costs, new mobility services), please allocate your household's typical monthly trips across the available modes. Use the sliders to adjust the percentage for each mode. The total must equal 100%.")
+    ),
+    
+    tags$div(style = "margin: 20px 0; overflow-x: auto;",
+             tags$table(class = "table choice-table table-bordered",
+                        tags$thead(tags$tr(
+                          tags$th("Mode Option"), tags$th("Access"), tags$th("Availability"),
+                          tags$th("Full Cost"), tags$th("Share of Trips (%)")
+                        )),
+                        tags$tbody(table_rows)
+             )
+    ),
+    
+    # --- New Two-Row Summary Box ---
+    div(class="summary-box",
+        div(id="allocation_summary", class="summary-row total-percent total-ok", 
+            "Total Allocated:", tags$span("100%")
         ),
-      ),
-      
-      # Choice table
-      tags$div(
-        style = "margin: 20px 0; overflow-x: auto;",
-        tags$table(
-          class = "table choice-table",
-          
-          # Header
-          tags$thead(
-            tags$tr(
-              tags$th("Vehicle Details", style = "min-width: 250px;"),
-              tags$th("Driving Range", style = "min-width: 150px;"),
-              tags$th("How do you use this vehicle", style = "min-width: 180px;"),
-              tags$th("How would you change your use", style = "min-width: 180px;"),
-              tags$th("Monthly Cost", style = "min-width: 100px;"),
-              tags$th("Your Choice", style = "min-width: 80px;")
-            )
-          ),
-          
-          # Body
-          tags$tbody(
-            table_rows
-          )
+        div(id="cost_summary", class="summary-row total-cost", 
+            "Your Estimated Monthly Cost:", tags$span("£...")
         )
-      ),
-      
-      # Validation message
-      conditionalPanel(
-        condition = "typeof input.vehicle_choice === 'undefined' || input.vehicle_choice === null || input.vehicle_choice === ''",
-        tags$div(
-          style = "margin: 15px 0; padding: 10px; background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px; color: #856404;",
-          tags$i(class = "fa fa-exclamation-triangle", style = "margin-right: 8px;"),
-          "Please select one vehicle option by clicking on a row before continuing."
-        )
-      ),
-      
-      # Action buttons
-      tags$div(
-        style = "margin: 30px 0; text-align: center;",
-        actionButton(
-          "to_sa_button4", 
-          "Continue to Next Section",
-          class = "btn btn-success btn-lg",
-          style = "padding: 12px 30px; font-size: 16px;"
-        )
-      ),
-      
-      # Debug output (remove in production)
-      conditionalPanel(
-        condition = "false", # Set to "true" for debugging
-        tags$div(
-          style = "margin-top: 20px; padding: 10px; background-color: #f8f9fa; border-radius: 4px;",
-          tags$h5("Debug Info:"),
-          tags$p("Selected choice: ", textOutput("debug_choice", inline = TRUE)),
-          tags$p("Number of cars: ", textOutput("debug_num_cars", inline = TRUE))
-        )
-      )
+    ),
+    
+    tags$div(style = "margin: 30px 0; text-align: center;",
+             actionButton("to_sa_button4", "Continue to Next Section", class = "btn btn-success btn-lg")
+    )
     )
   })
   
-  # Debug outputs (optional)
-  output$debug_choice <- renderText({
-    if(is.null(input$vehicle_choice)) {
-      "None selected"
-    } else {
-      input$vehicle_choice
-    }
-  })
   
-  output$debug_num_cars <- renderText({
-    if(is.null(input$num_cars)) {
-      "Not set"
-    } else {
-      input$num_cars
-    }
-  })
   
-  # ========= VERSION 4 =========
+  
+  # ========= VERSION 3: CONFIGURATOR=========
   output$sa_ui_placeholder4 <- renderUI({
     
     # Gatekeeper
@@ -1102,7 +1019,7 @@ function(input, output, session) {
     )
   })
   # This UI placeholder now just creates the box where the text will go.
-  # ========= VERSION 5 (MENU BUILDER) - CORRECTED =========
+  # ========= VERSION 4 (MENU BUILDER) - CORRECTED =========
   
   output$sa_ui_placeholder5 <- renderUI({
     
