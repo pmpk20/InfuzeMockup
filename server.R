@@ -1362,6 +1362,744 @@ function(input, output, session) {
   # ========= VERSION 4 (MENU BUILDER) - CORRECTED =========
   
   output$sa_ui_placeholder5 <- renderUI({
+
+    # Gatekeeper
+    req(input$num_cars)
+    if (input$num_cars != "0") {
+      req(input$car1_type, input$car1_fuel, input$car1_mileage)
+    }
+
+    # Cost calculation function
+    cost_func <- function(fuel, mileage) {
+      base_costs <- list("Petrol"=150*1.25, "Diesel"=160*1.25, "Fully Electric"=80, "Plug-in Hybrid"=120*1.15)
+      parking <- switch(mileage, "0-2,000"=5, "2,001-5,000"=10, "5,001-10,000"=15, "10,001+"=20, 0)
+      multiplier <- switch(mileage, "0-2,000"=0.6, "2,001-5,000"=1.0, "5,001-10,000"=1.5, "10,001+"=2.2, 1)
+      return(round((base_costs[[fuel]] * multiplier) + (parking * 1.20), 0))
+    }
+
+    # Attribute option creator - shows cost-quality trade-offs
+    create_attribute_option <- function(option_id, title, base_price, price_modifier, modifier_text, description, is_default = FALSE, is_premium = FALSE) {
+      total_price <- base_price + price_modifier
+
+      div(
+        class = paste("attribute-option", if(is_default) "default-option", if(is_premium) "premium-option"),
+        id = option_id,
+        onclick = paste0("Shiny.setInputValue('", option_id, "_clicked', Math.random())"),
+        style = "cursor: pointer; margin-bottom: 8px;",
+        div(class = "attribute-content",
+            fluidRow(
+              column(7,
+                     div(style = "display: flex; align-items: center;",
+                         h6(title, style = "margin: 0; flex-grow: 1;"),
+                         if(is_default) span(class = "default-badge", "Standard"),
+                         if(is_premium) span(class = "premium-badge", "Premium")
+                     ),
+                     p(description, class = "attribute-description", style = "margin: 2px 0 0 0;")
+              ),
+              column(3, align = "center",
+                     span(class = "price-modifier",
+                          if(price_modifier > 0) paste0("+£", price_modifier) else if(price_modifier < 0) paste0("-£", abs(price_modifier)) else "£0"),
+                     br(),
+                     span(class = "modifier-text", modifier_text, style = "font-size: 0.8em; color: #666;")
+              ),
+              column(2, align = "right",
+                     span(class = "total-price", paste0("£", total_price)),
+                     br(),
+                     span(class = "select-text", "Select", style = "font-size: 0.8em; color: #007bff;")
+              )
+            )
+        )
+      )
+    }
+
+
+    # Replace existing create_service_section with this version
+    create_service_section <- function(service_title, service_description, base_price, service_class, options_list) {
+      # safe id from title
+      id <- paste0("svc_", gsub("[^A-Za-z0-9]", "", tolower(service_title)))
+      header_id <- paste0(id, "_header")
+      body_id   <- paste0(id, "_body")
+
+      tagList(
+        # clickable header (wraps the fluidRow so whole header toggles)
+        tags$a(
+          class = "service-toggle",
+          href = paste0("#", body_id),
+          `data-toggle` = "collapse",
+          `aria-expanded` = "false",
+          `aria-controls` = body_id,
+          style = "text-decoration: none; color: inherit; display: block;",
+          div(id = header_id, class = paste("service-header", service_class),
+              fluidRow(
+                column(8,
+                       h4(service_title, style = "margin: 0;"),
+                       p(service_description, style = "margin: 5px 0 0 0; opacity: 0.9;")
+                ),
+                column(4, align = "right",
+                       span("From ", style = "color: white; opacity: 0.8;"),
+                       span(paste0("£", base_price), style = "font-size: 1.3em; font-weight: bold; color: white;"),
+                       br(),
+                       span("per month", style = "color: white; opacity: 0.8; font-size: 0.9em;")
+                )
+              )
+          )
+        ),
+        # collapsed body (closed by default)
+        div(id = body_id, class = "service-options collapse",
+            options_list
+        )
+      )
+    }
+
+
+    # Basket display reactive
+    output$sa4_basket_display <- renderUI({
+      div(class = "cost-basket",
+          h5("Selected Portfolio", style = "margin-bottom: 10px;"),
+          div(id = "basket-items", style = "min-height: 50px;",
+              p("Select service attributes below", style = "color: #666; font-style: italic;")
+          ),
+          hr(style = "margin: 10px 0;"),
+          div(class = "basket-total",
+              span("Monthly Total: ", style = "font-weight: bold;"),
+              span(id = "basket-total-amount", "£0", style = "font-weight: bold; font-size: 1.3em; color: #28a745;")
+          )
+      )
+    })
+
+    # Main UI with sidebar layout
+    tagList(
+      tags$style(HTML("
+      .service-toggle { cursor: pointer; }
+      .service-options.collapse { transition: height .25s ease; }
+      .attribute-option {
+        background: #fff;
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
+        padding: 12px;
+        transition: all 0.15s ease;
+        position: relative;
+      }
+      .attribute-option:hover {
+        border-color: #007bff;
+        box-shadow: 0 2px 8px rgba(0,123,255,0.1);
+        transform: translateY(-1px);
+      }
+      .attribute-option.selected {
+        border-color: #28a745;
+        background-color: #f8fff9;
+        box-shadow: 0 0 0 2px rgba(40,167,69,0.2);
+      }
+      .attribute-option.default-option { background-color: #f8f9fa; }
+      .attribute-option.premium-option { background-color: #fff8f0; }
+
+      /* Improved service header colours for better contrast */
+      .service-header {
+        background: linear-gradient(135deg, #495057 0%, #343a40 100%);
+        color: white;
+        padding: 15px 20px;
+        border-radius: 8px;
+        margin: 25px 0 15px 0;
+      }
+      .service-header.private { background: linear-gradient(135deg, #2196F3 0%, #1565C0 100%); }
+      .service-header.carclub { background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%); }
+      .service-header.p2p { background: linear-gradient(135deg, #E91E63 0%, #AD1457 100%); }
+      .service-header.public { background: linear-gradient(135deg, #00BCD4 0%, #0097A7 100%); }
+      .service-header.micro { background: linear-gradient(135deg, #FF9800 0%, #E65100 100%); }
+
+      .service-options {
+        background: #fafbfc;
+        padding: 15px;
+        border-radius: 0 0 8px 8px;
+        margin-bottom: 20px;
+        border: 1px solid #e9ecef;
+        border-top: none;
+      }
+
+      .default-badge {
+        background: #6c757d; color: white; padding: 2px 6px; border-radius: 10px; font-size: 0.7em; margin-left: 8px;
+      }
+      .premium-badge {
+        background: #ffc107; color: #000; padding: 2px 6px; border-radius: 10px; font-size: 0.7em; margin-left: 8px;
+      }
+      .price-modifier {
+        font-weight: bold;
+        font-size: 1.1em;
+      }
+      .total-price {
+        font-size: 1.2em;
+        font-weight: bold;
+        color: #28a745;
+      }
+      .attribute-description {
+        color: #666;
+        font-size: 0.85em;
+      }
+      .select-text {
+        font-weight: bold;
+      }
+
+      /* Sticky sidebar styling */
+      .sticky-sidebar {
+        position: sticky;
+        top: 20px;
+        height: fit-content;
+        max-height: calc(100vh - 40px);
+        overflow-y: auto;
+      }
+
+      .scenario-info {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+      }
+
+      .portfolio-basket {
+        background-color: #fff3cd;
+        border: 1px solid #ffeaa7;
+        padding: 20px;
+        border-radius: 8px;
+      }
+
+      .main-content {
+        padding-right: 15px;
+      }
+
+      @media (max-width: 768px) {
+        .sticky-sidebar {
+          position: static;
+          margin-bottom: 20px;
+        }
+      }
+    ")),
+
+    div(class = "container-fluid", style = "max-width: 1200px; margin-top: 20px;",
+        fluidRow(
+          # Main content area (left side)
+          column(8, class = "main-content",
+                 div(style="text-align: center; margin-bottom: 30px;",
+                     h2("Design Your Mobility Portfolio"),
+                     p("Choose your preferred service levels across different transport options. Each service shows attribute trade-offs with associated costs.")
+                 ),
+
+                 # PRIVATE VEHICLE OWNERSHIP
+                 create_service_section(
+                   "Private Vehicle Ownership",
+                   "Own and maintain your personal vehicle(s) with different specification levels",
+                   if(input$num_cars != "0") cost_func(input$car1_fuel, input$car1_mileage) else 150,
+                   "private",
+                   tagList(
+                     if (input$num_cars != "0") {
+                       lapply(1:switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4), function(i) {
+                         base_cost <- cost_func(input[[paste0("car", i, "_fuel")]], input[[paste0("car", i, "_mileage")]])
+                         tagList(
+                           h6(paste("Vehicle", i, ":", input[[paste0("car", i, "_fuel")]], input[[paste0("car", i, "_type")]]),
+                              style = "margin: 15px 0 10px 0; color: #495057;"),
+                           create_attribute_option(
+                             paste0("keep_current_", i), "Keep Current Vehicle", base_cost, 0, "no change",
+                             "Continue with existing vehicle under new scenario conditions", is_default = TRUE
+                           ),
+                           create_attribute_option(
+                             paste0("upgrade_insurance_", i), "Enhanced Insurance & Breakdown", base_cost, 25, "premium cover",
+                             "Full comprehensive plus European breakdown and courtesy car"
+                           ),
+                           create_attribute_option(
+                             paste0("replace_ev_", i), "Replace with Electric Vehicle", base_cost, 60, "new EV",
+                             "Brand new electric vehicle with home charging installation"
+                           )
+                         )
+                       })
+                     }
+                   )
+                 ),
+
+                 # CAR CLUB SERVICES
+                 create_service_section(
+                   "Car Club Membership",
+                   "Access to shared vehicles with different availability and booking flexibility levels",
+                   35,
+                   "carclub",
+                   tagList(
+                     h6("Availability Level", style = "margin: 0 0 10px 0; color: #495057; font-weight: bold;"),
+                     create_attribute_option(
+                       "carclub_basic", "Basic Access", 35, 0, "standard",
+                       "Vehicle available with 24-hour advance booking, neighbourhood pods", is_default = TRUE
+                     ),
+                     create_attribute_option(
+                       "carclub_priority", "Priority Access", 35, 25, "faster booking",
+                       "2-hour advance booking, wider vehicle selection, city-wide access"
+                     ),
+                     create_attribute_option(
+                       "carclub_guaranteed", "Guaranteed Access", 35, 45, "on-demand",
+                       "Immediate booking, guaranteed availability during peak hours", is_premium = TRUE
+                     ),
+
+                     br(),
+                     h6("Vehicle Type", style = "margin: 15px 0 10px 0; color: #495057; font-weight: bold;"),
+                     create_attribute_option(
+                       "carclub_standard", "Standard Fleet", 0, 0, "economy cars",
+                       "Small city cars and compact vehicles, basic specification"
+                     ),
+                     create_attribute_option(
+                       "carclub_premium", "Premium Fleet Access", 0, 20, "better vehicles",
+                       "Mid-size vehicles, SUVs, and premium models available"
+                     ),
+                     create_attribute_option(
+                       "carclub_specialist", "Specialist Vehicles", 0, 15, "cargo/family",
+                       "Access to vans, people carriers, and cargo vehicles when needed"
+                     )
+                   )
+                 ),
+
+                 # PEER-TO-PEER SHARING
+                 create_service_section(
+                   "Peer-to-Peer Car Sharing",
+                   "Share vehicles within your community with different coordination and reliability levels",
+                   15,
+                   "p2p",
+                   tagList(
+                     h6("Coordination Level", style = "margin: 0 0 10px 0; color: #495057; font-weight: bold;"),
+                     create_attribute_option(
+                       "p2p_informal", "Informal Neighbourhood Group", 15, 0, "basic sharing",
+                       "Arrange directly with neighbours, informal scheduling", is_default = TRUE
+                     ),
+                     create_attribute_option(
+                       "p2p_managed", "Managed Community Scheme", 15, 20, "coordinated",
+                       "Professional coordination, booking app, maintenance included"
+                     ),
+                     create_attribute_option(
+                       "p2p_guaranteed", "Guaranteed Community Access", 15, 35, "reliable access",
+                       "Backup vehicles available, insurance included, priority booking", is_premium = TRUE
+                     ),
+
+                     br(),
+                     h6("Coverage Area", style = "margin: 15px 0 10px 0; color: #495057; font-weight: bold;"),
+                     create_attribute_option(
+                       "p2p_local", "Immediate Neighbourhood", 0, 0, "walking distance",
+                       "Vehicles within 200m, small local group of 8-12 households"
+                     ),
+                     create_attribute_option(
+                       "p2p_extended", "Extended Area Network", 0, 10, "wider choice",
+                       "Multiple neighbourhood groups, vehicles within 800m, larger fleet"
+                     )
+                   )
+                 ),
+
+                 # PUBLIC TRANSPORT
+                 create_service_section(
+                   "Public Transport",
+                   "Integrated transport passes with different coverage and flexibility levels",
+                   50,
+                   "public",
+                   tagList(
+                     h6("Coverage Level", style = "margin: 0 0 10px 0; color: #495057; font-weight: bold;"),
+                     create_attribute_option(
+                       "pt_local", "Local Area Pass", 35, 0, "Leeds zone",
+                       "Unlimited buses and local rail within Leeds boundary", is_default = TRUE
+                     ),
+                     create_attribute_option(
+                       "pt_regional", "West Yorkshire Pass", 50, 15, "regional access",
+                       "All buses, trains, and metros across West Yorkshire"
+                     ),
+                     create_attribute_option(
+                       "pt_national", "National Rail Included", 50, 40, "long distance",
+                       "Regional pass plus discounted national rail travel", is_premium = TRUE
+                     ),
+
+                     br(),
+                     h6("Flexibility Options", style = "margin: 15px 0 10px 0; color: #495057; font-weight: bold;"),
+                     create_attribute_option(
+                       "pt_standard", "Standard Pass", 0, 0, "fixed monthly",
+                       "Monthly pass, no refunds, standard terms"
+                     ),
+                     create_attribute_option(
+                       "pt_flexible", "Flexible Pass", 0, 12, "pause/resume",
+                       "Can pause during holidays, partial refunds available"
+                     )
+                   )
+                 ),
+
+                 # MICROMOBILITY & ACTIVE TRAVEL
+                 create_service_section(
+                   "Micromobility & Active Travel",
+                   "E-bikes, scooters, and walking/cycling infrastructure access",
+                   10,
+                   "micro",
+                   tagList(
+                     h6("Service Level", style = "margin: 0 0 10px 0; color: #495057; font-weight: bold;"),
+                     create_attribute_option(
+                       "micro_basic", "Basic Bike Share", 10, 0, "standard access",
+                       "Manual bikes, 30-minute journeys, docking stations", is_default = TRUE
+                     ),
+                     create_attribute_option(
+                       "micro_electric", "E-bike & E-scooter Access", 10, 15, "powered options",
+                       "Electric bikes and scooters, 45-minute journeys, more locations"
+                     ),
+                     create_attribute_option(
+                       "micro_premium", "Premium Active Mobility", 10, 25, "unlimited access",
+                       "All e-bike/scooter types, unlimited time, priority support", is_premium = TRUE
+                     ),
+
+                     br(),
+                     h6("Additional Services", style = "margin: 15px 0 10px 0; color: #495057; font-weight: bold;"),
+                     create_attribute_option(
+                       "micro_storage", "Secure Cycle Storage", 0, 8, "safe parking",
+                       "Guaranteed secure parking at home, work, and transport hubs"
+                     ),
+                     create_attribute_option(
+                       "micro_maintenance", "Bike Maintenance Package", 0, 12, "full service",
+                       "Annual service, repairs, and breakdown assistance for personal bikes"
+                     )
+                   )
+                 ),
+
+                 br(),
+                 div(align="center",
+                     actionButton("to_sa_button5", "Continue with Portfolio", class="btn-primary btn-lg", style="margin: 20px 0;")
+                 )
+          ),
+
+          # Sticky sidebar (right side)
+          column(4, class = "sticky-sidebar",
+                 # Scenario information box
+                 div(class = "scenario-info",
+                     h5("Leeds 2030 Scenario:", style = "margin-top: 0;"),
+                     tags$table(
+                       class="table table-sm table-borderless", style="margin-bottom: 0;",
+                       tags$tbody(
+                         tags$tr(tags$td(icon("gas-pump"), " Fuel prices:"), tags$td("+60p/litre")),
+                         tags$tr(tags$td(icon("parking"), " Parking:"), tags$td("+20% permits")),
+                         tags$tr(tags$td(icon("bus"), " Public transport:"), tags$td("New integrated passes")),
+                         tags$tr(tags$td(icon("share-alt"), " Mobility services:"), tags$td("Expanded car sharing"))
+                       )
+                     )
+                 ),
+
+                 # Portfolio basket
+                 div(class = "portfolio-basket",
+                     uiOutput("sa4_basket_display")
+                 )
+          )
+        )
+    ),
+
+    # JavaScript for selection management
+    tags$script(HTML("
+      // Allow only one selection per service category
+      $(document).on('click', '.attribute-option', function() {
+        var $option = $(this);
+        var $serviceSection = $option.closest('.service-options');
+        var $categoryHeader = $option.prevAll('h6:first');
+        var wasSelected = $option.hasClass('selected');
+
+        // For same category, deselect all others first
+        $categoryHeader.nextUntil('h6, br').filter('.attribute-option').removeClass('selected');
+
+        // If it wasn't selected before, select it now (allows deselection by clicking again)
+        if (!wasSelected) {
+          $option.addClass('selected');
+        }
+
+        updateBasket();
+      });
+
+      function updateBasket() {
+        var selectedOptions = [];
+        var totalCost = 0;
+
+        $('.attribute-option.selected').each(function() {
+          var $option = $(this);
+          var title = $option.find('h6').text();
+          if (!title) title = $option.find('h5').first().text(); // Fallback
+          var priceText = $option.find('.total-price').text();
+          var price = parseFloat(priceText.replace('£', ''));
+
+          selectedOptions.push({title: title, price: price});
+          totalCost += price;
+        });
+
+        // Update basket display
+        var $basketItems = $('#basket-items');
+        if (selectedOptions.length === 0) {
+          $basketItems.html('<p style=\"color: #666; font-style: italic;\">Select service attributes below</p>');
+        } else {
+          var itemsHtml = selectedOptions.map(function(item) {
+            return '<div style=\"padding: 2px 0; font-size: 0.9em; display: flex; justify-content: space-between;\"><span>• ' +
+                   item.title + '</span><span>£' + item.price + '</span></div>';
+          }).join('');
+          $basketItems.html(itemsHtml);
+        }
+
+        $('#basket-total-amount').text('£' + totalCost);
+      }
+    "))
+    )
+  })
+
+  # ========= VERSION 4: Menu Builder (REFACTORED) =========
+  
+  output$sa_ui_placeholder5 <- renderUI({
+    
+    # --- PREREQUISITES (Unchanged) ---
+    req(input$num_cars)
+    if (input$num_cars != "0") {
+      req(input$car1_type, input$car1_fuel, input$car1_mileage)
+    }
+    cost_func <- function(fuel, mileage) {
+      base_costs <- list("Petrol"=150*1.25, "Diesel"=160*1.25, "Fully Electric"=80, "Plug-in Hybrid"=120*1.15)
+      parking <- switch(mileage, "0-2,000"=5, "2,001-5,000"=10, "5,001-10,000"=15, "10,001+"=20, 0)
+      multiplier <- switch(mileage, "0-2,000"=0.6, "2,001-5,000"=1.0, "5,001-10,000"=1.5, "10,001+"=2.2, 1)
+      return(round((base_costs[[fuel]] * multiplier) + (parking * 1.20), 0))
+    }
+    
+    # --- BUDGET ALLOCATOR UI ---
+    current_vehicle_costs <- if(input$num_cars != "0") {
+      total_cost <- 0
+      num_vehicles_to_process <- switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4)
+      for(i in 1:num_vehicles_to_process) {
+        fuel_input <- input[[paste0("car", i, "_fuel")]]; mileage_input <- input[[paste0("car", i, "_mileage")]]
+        if (!is.null(fuel_input) && !is.null(mileage_input)) {
+          total_cost <- total_cost + cost_func(fuel_input, mileage_input)
+        }
+      }
+      total_cost
+    } else { 0 }
+    
+    scenario_budget <- max(300, current_vehicle_costs * 1.2)
+    
+    # Main budget allocation interface
+    tagList(
+      # Budget overview header
+      div(class = "budget-overview",
+          style = "background: linear-gradient(135deg, #6c757d 0%, #495057 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 30px;",
+          fluidRow(
+            column(6,
+                   h4("Your 2030 Transport Budget", style = "margin: 0 0 10px 0;"),
+                   p("Current spending:", style = "margin: 0; opacity: 0.8;"),
+                   h5(paste0("£", current_vehicle_costs, "/month"), style = "margin: 0 0 10px 0;"),
+                   p("2030 scenario budget:", style = "margin: 0; opacity: 0.8;"),
+                   h3(paste0("£", round(scenario_budget), "/month"), style = "margin: 0; color: #ffc107;")
+            ),
+            column(6, align = "right",
+                   div(style = "margin-top: 20px;",
+                       span("Remaining: ", style = "opacity: 0.8;"),
+                       br(),
+                       span(id = "remaining_budget", paste0("£", round(scenario_budget)), 
+                            style = "font-size: 2em; font-weight: bold; color: #28a745;")
+                   )
+            )
+          )
+      ),
+      
+      # Budget allocation sliders/options
+      div(class = "budget-sections",
+          
+          # VEHICLE OWNERSHIP BUDGET
+          div(class = "budget-section vehicle-section",
+              style = "border: 2px solid #007bff; border-radius: 8px; padding: 20px; margin-bottom: 20px; background: #f8f9ff;",
+              h5("Vehicle Ownership", style = "color: #007bff; margin-bottom: 15px;"),
+              
+              if(input$num_cars == "0") {
+                # For 0-car households - acquisition choices
+                tagList(
+                  div(class = "budget-item",
+                      fluidRow(
+                        column(8,
+                               radioButtons("vehicle_choice", NULL, inline = FALSE,
+                                            choices = list(
+                                              "Stay car-free (£0/month)" = 0,
+                                              "Used petrol car (£180/month)" = 180,
+                                              "New petrol car (£285/month)" = 285, 
+                                              "Used electric car (£195/month)" = 195,
+                                              "New electric car (£320/month)" = 320
+                                            ), selected = 0)
+                        ),
+                        column(4, align = "right",
+                               div(style = "padding-top: 15px;",
+                                   span(id = "vehicle_budget_display", "£0", 
+                                        style = "font-size: 1.5em; font-weight: bold; color: #007bff;")
+                               )
+                        )
+                      )
+                  )
+                )
+              } else {
+                # For car owners - fleet modification choices
+                tagList(
+                  div(class = "budget-item",
+                      h6("Fleet Strategy", style = "margin-bottom: 10px;"),
+                      fluidRow(
+                        column(8,
+                               radioButtons("fleet_strategy", NULL, inline = FALSE,
+                                            choices = {
+                                              # Build choices dynamically
+                                              choices_list <- list()
+                                              choices_list[[paste0("Keep all ", input$num_cars, " vehicles (£", current_vehicle_costs, "/month)")]] <- current_vehicle_costs
+                                              if (as.numeric(gsub("\\+", "", input$num_cars)) > 1) {
+                                                choices_list[[paste0("Downsize to ", as.numeric(gsub("\\+", "", input$num_cars)) - 1, " vehicle(s) (£", round(current_vehicle_costs * 0.65), "/month)")]] <- round(current_vehicle_costs * 0.65)
+                                              }
+                                              if (as.numeric(gsub("\\+", "", input$num_cars)) > 1) {
+                                                choices_list[[paste0("Keep only 1 vehicle (£", round(current_vehicle_costs * 0.35), "/month)")]] <- round(current_vehicle_costs * 0.35)
+                                              }
+                                              choices_list[["Sell all vehicles (£0/month)"]] <- 0
+                                              choices_list
+                                            }, selected = current_vehicle_costs)
+                        ),
+                        column(4, align = "right", 
+                               div(style = "padding-top: 15px;",
+                                   span(id = "fleet_budget_display", paste0("£", current_vehicle_costs), 
+                                        style = "font-size: 1.5em; font-weight: bold; color: #007bff;")
+                               )
+                        )
+                      )
+                  )
+                )
+              }
+          ),
+          
+          # CAR CLUB BUDGET
+          div(class = "budget-section carclub-section",
+              style = "border: 2px solid #4CAF50; border-radius: 8px; padding: 20px; margin-bottom: 20px; background: #f8fff8;",
+              h5("2. Car Club Access", style = "color: #4CAF50; margin-bottom: 15px;"),
+              radioButtons("carclub_choice", label = "Choose your level of car club access:", inline = FALSE,
+                           choices = list(
+                             "None (No access)" = 0,
+                             "Occasional Use (£30/month): Access for planned trips, e.g., monthly shopping" = 30,
+                             "Regular Use (£75/month): Can act as a reliable backup to your main transport" = 75,
+                             "Heavy Use (£130/month): A viable replacement for a second car" = 130
+                           ), selected = 0)
+          ),
+          
+          # PUBLIC TRANSPORT BUDGET  
+          div(class = "budget-section pt-section",
+              style = "border: 2px solid #00BCD4; border-radius: 8px; padding: 20px; margin-bottom: 20px; background: #f0fdff;",
+              h5("Public Transport", style = "color: #00BCD4; margin-bottom: 15px;"),
+              fluidRow(
+                column(8,
+                       sliderInput("pt_budget", "Monthly public transport spending:",
+                                   min = 0, max = 120, value = 0, step = 10,
+                                   pre = "£", post = "/month")
+                ),
+                column(4, align = "right",
+                       div(style = "margin-top: 25px;",
+                           span(id = "pt_level", "No pass", style = "font-weight: bold; color: #00BCD4;")
+                       )
+                )
+              ),
+              div(id = "pt_description", style = "margin-top: 10px; padding: 10px; background: white; border-radius: 4px; font-size: 0.9em;",
+                  "Pay per journey or no public transport use"
+              )
+          ),
+          
+          # MICROMOBILITY BUDGET
+          div(class = "budget-section micro-section", 
+              style = "border: 2px solid #FF9800; border-radius: 8px; padding: 20px; margin-bottom: 20px; background: #fffaf0;",
+              h5("Bike Share & Active Travel", style = "color: #FF9800; margin-bottom: 15px;"),
+              fluidRow(
+                column(8,
+                       sliderInput("micro_budget", "Monthly micromobility spending:",
+                                   min = 0, max = 50, value = 0, step = 5,
+                                   pre = "£", post = "/month")
+                ),
+                column(4, align = "right",
+                       div(style = "margin-top: 25px;", 
+                           span(id = "micro_level", "None", style = "font-weight: bold; color: #FF9800;")
+                       )
+                )
+              ),
+              div(id = "micro_description", style = "margin-top: 10px; padding: 10px; background: white; border-radius: 4px; font-size: 0.9em;",
+                  "Walk/cycle using own equipment only"
+              )
+          )
+      ),
+      
+      # Budget validation and continuation
+      div(class = "budget-summary",
+          style = "background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 30px auto; max-width: 800px;",
+          fluidRow(
+            column(8,
+                   h5("Portfolio Summary", style = "margin-bottom: 15px;"),
+                   div(id = "portfolio_summary", 
+                       "Allocate your budget using the controls above"
+                   )
+            ),
+            column(4, align = "right",
+                   div(style = "text-align: center; padding: 15px; background: white; border-radius: 8px;",
+                       span("Budget Status:", style = "display: block; margin-bottom: 5px;"),
+                       span(id = "budget_status", "£0 allocated", 
+                            style = "font-size: 1.3em; font-weight: bold; color: #28a745;"),
+                       br(), br(),
+                       actionButton("continue_budget", "Continue with Portfolio", 
+                                    class = "btn-primary", disabled = TRUE)
+                   )
+            )
+          )
+      ),
+      
+      # JavaScript for budget allocation logic
+      # --- REVISED: JavaScript for new radio button logic ---
+      tags$script(HTML(paste0("
+        var scenarioBudget = ", round(scenario_budget), ";
+        
+        function updateBudgetDisplay() {
+          var vehicleCost = parseInt($('input[name=\"fleet_strategy\"]:checked, input[name=\"vehicle_choice\"]:checked').val()) || 0;
+          var carclubCost = parseInt($('input[name=\"carclub_choice\"]:checked').val()) || 0;
+          var ptCost = parseInt($('input[name=\"pt_choice\"]:checked').val()) || 0;
+          var microCost = parseInt($('input[name=\"micro_choice\"]:checked').val()) || 0;
+          
+          var totalAllocated = vehicleCost + carclubCost + ptCost + microCost;
+          var remaining = scenarioBudget - totalAllocated;
+          
+          $('#remaining_budget').text('£' + remaining);
+          $('#budget_status').text('£' + totalAllocated + ' allocated');
+          
+          if (remaining < 0) {
+            $('#remaining_budget').css('color', '#dc3545');
+            $('#budget_status').css('color', '#dc3545');
+            $('#continue_budget').prop('disabled', true);
+          } else {
+            $('#remaining_budget').css('color', '#28a745');
+            $('#budget_status').css('color', '#28a745'); 
+            $('#continue_budget').prop('disabled', false);
+          }
+          
+          updatePortfolioSummary(vehicleCost, carclubCost, ptCost, microCost);
+        }
+        
+        function updatePortfolioSummary(vehicle, carclub, pt, micro) {
+          var summary_html = '';
+          var vehicle_text = $('input[name=\"fleet_strategy\"]:checked, input[name=\"vehicle_choice\"]:checked').parent().text().trim();
+          summary_html += '<div>' + vehicle_text + '</div>';
+          
+          if (carclub > 0) {
+            summary_html += '<div>' + $('input[name=\"carclub_choice\"]:checked').parent().text().trim() + '</div>';
+          }
+          if (pt > 0) {
+            summary_html += '<div>' + $('input[name=\"pt_choice\"]:checked').parent().text().trim() + '</div>';
+          }
+          if (micro > 0) {
+            summary_html += '<div>' + $('input[name=\"micro_choice\"]:checked').parent().text().trim() + '</div>';
+          }
+          $('#portfolio_summary').html(summary_html);
+        }
+        
+        // Event listeners for ALL radio button groups
+        $(document).on('change', 'input[type=radio]', updateBudgetDisplay);
+        
+        // Initial call on load
+        updateBudgetDisplay();
+      ")))
+    )
+    
+  })
+  
+    
+  # This UI placeholder now just creates the box where the text will go.
+  # ========= VERSION 5 (MENU BUILDER) - NEW =========
+  
+  output$sa_ui_placeholder6 <- renderUI({
     
     # Gatekeeper
     req(input$num_cars)
@@ -1581,142 +2319,206 @@ function(input, output, session) {
           column(8, class = "main-content",
                  div(style="text-align: center; margin-bottom: 30px;",
                      h2("Design Your Mobility Portfolio"),
+                     hr(),
+                     h3("What will your household transport look like in 2030?"),
                      p("Choose your preferred service levels across different transport options. Each service shows attribute trade-offs with associated costs.")
                  ),
                  
-                 # PRIVATE VEHICLE OWNERSHIP
+                 # PRIVATE VEHICLE OWNERSHIP - Revised Structure
                  create_service_section(
                    "Private Vehicle Ownership", 
-                   "Own and maintain your personal vehicle(s) with different specification levels",
-                   if(input$num_cars != "0") cost_func(input$car1_fuel, input$car1_mileage) else 150,
+                   paste0("Current fleet: ", input$num_cars, " vehicle", if(input$num_cars != "1") "s"),
+                   if(input$num_cars != "0") {
+                     # Calculate total cost of all current vehicles
+                     total_current_cost <- 0
+                     for(i in 1:switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4)) {
+                       total_current_cost <- total_current_cost + cost_func(input[[paste0("car", i, "_fuel")]], input[[paste0("car", i, "_mileage")]])
+                     }
+                     total_current_cost
+                   } else {
+                     0
+                   },
                    "private",
                    tagList(
+                     # Show all currently owned vehicles first
                      if (input$num_cars != "0") {
-                       lapply(1:switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4), function(i) {
-                         base_cost <- cost_func(input[[paste0("car", i, "_fuel")]], input[[paste0("car", i, "_mileage")]])
-                         tagList(
-                           h6(paste("Vehicle", i, ":", input[[paste0("car", i, "_fuel")]], input[[paste0("car", i, "_type")]]), 
-                              style = "margin: 15px 0 10px 0; color: #495057;"),
+                       tagList(
+                         h6("Current Vehicle Fleet", style = "margin: 0 0 10px 0; color: #495057; font-weight: bold;"),
+                         lapply(1:switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4), function(i) {
+                           vehicle_cost <- cost_func(input[[paste0("car", i, "_fuel")]], input[[paste0("car", i, "_mileage")]])
                            create_attribute_option(
-                             paste0("keep_current_", i), "Keep Current Vehicle", base_cost, 0, "no change",
-                             "Continue with existing vehicle under new scenario conditions", is_default = TRUE
-                           ),
-                           create_attribute_option(
-                             paste0("upgrade_insurance_", i), "Enhanced Insurance & Breakdown", base_cost, 25, "premium cover",  
-                             "Full comprehensive plus European breakdown and courtesy car"
-                           ),
-                           create_attribute_option(
-                             paste0("replace_ev_", i), "Replace with Electric Vehicle", base_cost, 60, "new EV",
-                             "Brand new electric vehicle with home charging installation"
+                             paste0("keep_vehicle_", i), 
+                             paste("Vehicle", i, ":", input[[paste0("car", i, "_fuel")]], input[[paste0("car", i, "_type")]]), 
+                             vehicle_cost, 0, "no change",
+                             paste0("Continue with ", input[[paste0("car", i, "_mileage")]], " miles/year, current insurance level"),
+                             is_default = TRUE
                            )
+                         }),
+                         
+                         br(),
+                         h6("Fleet Modifications", style = "margin: 15px 0 10px 0; color: #495057; font-weight: bold;")
+                       )
+                     },
+                     
+                     # Vehicle addition options (for all household types)
+                     if (input$num_cars == "0") {
+                       tagList(
+                         h6("First Vehicle Acquisition", style = "margin: 0 0 10px 0; color: #495057; font-weight: bold;"),
+                         create_attribute_option(
+                           "add_used_petrol", "Used Petrol Car (5-8 years)", 0, 180, "first car",
+                           "£8-12k purchase, comprehensive insurance, 8,000 miles/year typical"
+                         ),
+                         create_attribute_option(
+                           "add_new_petrol", "New Petrol Car", 0, 285, "brand new",
+                           "£18-25k purchase, full warranty, comprehensive insurance included"
+                         ),
+                         create_attribute_option(
+                           "add_used_ev", "Used Electric Vehicle", 0, 195, "second-hand EV",
+                           "£12-18k purchase, home charging installation, lower running costs"
+                         ),
+                         create_attribute_option(
+                           "add_new_ev", "New Electric Vehicle", 0, 320, "new EV",
+                           "£25-35k purchase, home charging, government grants, full warranty"
                          )
-                       })
+                       )
+                     } else {
+                       tagList(
+                         # Replacement options
+                         create_attribute_option(
+                           "replace_oldest_ev", "Replace Oldest with Electric", 0, 45, "EV upgrade",
+                           "Trade oldest vehicle for 2-3 year old EV, install home charging"
+                         ),
+                         create_attribute_option(
+                           "upgrade_insurance_all", "Enhanced Insurance (All Vehicles)", 0, 25 * as.numeric(input$num_cars), "premium cover",  
+                           "Comprehensive plus European breakdown, courtesy car, protected no claims"
+                         ),
+                         
+                         # Addition options (if not at maximum)
+                         if (input$num_cars %in% c("1", "2", "3")) {
+                           create_attribute_option(
+                             "add_second_car", paste("Add Additional Vehicle (+1 car)"), 0, 180, "expand fleet",
+                             "Used car for additional household member or specific use (work van, small car etc.)"
+                           )
+                         },
+                         
+                         # Removal options (if have multiple cars)  
+                         if (input$num_cars %in% c("2", "3", "4+")) {
+                           tagList(
+                             create_attribute_option(
+                               "remove_one_car", paste("Remove One Vehicle (-1 car)"), 0, -150, "downsize fleet",
+                               "Sell least essential vehicle, reduce insurance/tax costs, rely more on alternatives"
+                             ),
+                             if (input$num_cars %in% c("3", "4+")) {
+                               create_attribute_option(
+                                 "remove_two_cars", paste("Remove Two Vehicles (-2 cars)"), 0, -280, "major downsize",
+                                 "Keep only most essential vehicle, major cost reduction, increase alternative transport use"
+                               )
+                             }
+                           )
+                         }
+                       )
                      }
                    )
                  ),
                  
-                 # CAR CLUB SERVICES
+                 # CAR CLUB - Based on actual Leeds operators
                  create_service_section(
                    "Car Club Membership",
-                   "Access to shared vehicles with different availability and booking flexibility levels", 
-                   35,
+                   "Access to shared vehicles through Enterprise Car Club (Leeds city centre locations)", 
+                   20,  # More realistic: £10 annual + usage costs
                    "carclub",
                    tagList(
-                     h6("Availability Level", style = "margin: 0 0 10px 0; color: #495057; font-weight: bold;"),
+                     h6("Membership Level", style = "margin: 0 0 10px 0; color: #495057; font-weight: bold;"),
                      create_attribute_option(
-                       "carclub_basic", "Basic Access", 35, 0, "standard",
-                       "Vehicle available with 24-hour advance booking, neighbourhood pods", is_default = TRUE
+                       "carclub_basic", "Basic Annual (£10/year)", 20, 0, "£7.50/hour", 
+                       "Access to cars in Wellington Place, Leeds General Infirmary, University - must book 1hr ahead", is_default = TRUE
                      ),
                      create_attribute_option(
-                       "carclub_priority", "Priority Access", 35, 25, "faster booking",
-                       "2-hour advance booking, wider vehicle selection, city-wide access"
-                     ),
-                     create_attribute_option(
-                       "carclub_guaranteed", "Guaranteed Access", 35, 45, "on-demand",
-                       "Immediate booking, guaranteed availability during peak hours", is_premium = TRUE
+                       "carclub_premium", "Plus Annual (£60/year)", 20, 50, "£6.50/hour",
+                       "Reduced hourly rates, priority booking, access to larger vehicles and vans"
                      ),
                      
                      br(),
-                     h6("Vehicle Type", style = "margin: 15px 0 10px 0; color: #495057; font-weight: bold;"),
+                     h6("Usage Frequency", style = "margin: 15px 0 10px 0; color: #495057; font-weight: bold;"),
                      create_attribute_option(
-                       "carclub_standard", "Standard Fleet", 0, 0, "economy cars",
-                       "Small city cars and compact vehicles, basic specification"
+                       "carclub_occasional", "Occasional Use", 0, 15, "2-4 hrs/month",
+                       "Mainly for shopping trips, airport runs, weekend outings - £15-30/month typical"
                      ),
                      create_attribute_option(
-                       "carclub_premium", "Premium Fleet Access", 0, 20, "better vehicles", 
-                       "Mid-size vehicles, SUVs, and premium models available"
+                       "carclub_regular", "Regular Use", 0, 45, "8-12 hrs/month", 
+                       "Regular errands, commuting backup, leisure trips - £50-80/month typical"
                      ),
                      create_attribute_option(
-                       "carclub_specialist", "Specialist Vehicles", 0, 15, "cargo/family",
-                       "Access to vans, people carriers, and cargo vehicles when needed"
+                       "carclub_heavy", "Heavy Use", 0, 90, "20+ hrs/month",
+                       "Primary transport solution replacing second car - £120+ monthly"
                      )
                    )
                  ),
                  
-                 # PEER-TO-PEER SHARING
+                 # PEER-TO-PEER - Realistic UK context  
                  create_service_section(
-                   "Peer-to-Peer Car Sharing",
-                   "Share vehicles within your community with different coordination and reliability levels",
-                   15, 
+                   "Community Car Sharing",
+                   "Share vehicles with neighbours through informal arrangements or platforms",
+                   0,
                    "p2p",
                    tagList(
-                     h6("Coordination Level", style = "margin: 0 0 10px 0; color: #495057; font-weight: bold;"),
+                     h6("Organisation Level", style = "margin: 0 0 10px 0; color: #495057; font-weight: bold;"),
                      create_attribute_option(
-                       "p2p_informal", "Informal Neighbourhood Group", 15, 0, "basic sharing",
-                       "Arrange directly with neighbours, informal scheduling", is_default = TRUE  
+                       "p2p_informal", "Informal Neighbour Arrangement", 0, 0, "direct contact",
+                       "Share costs directly with 2-3 nearby households, WhatsApp coordination", is_default = TRUE  
                      ),
                      create_attribute_option(
-                       "p2p_managed", "Managed Community Scheme", 15, 20, "coordinated",
-                       "Professional coordination, booking app, maintenance included"
+                       "p2p_hiyacar", "Peer-to-Peer Platform (Turo/HiyaCar)", 8, 12, "app booking",
+                       "£8/month insurance, book local private cars through app, £20-40/day typical"
                      ),
                      create_attribute_option(
-                       "p2p_guaranteed", "Guaranteed Community Access", 15, 35, "reliable access",
-                       "Backup vehicles available, insurance included, priority booking", is_premium = TRUE
+                       "p2p_community", "Organised Community Scheme", 15, 25, "managed sharing",
+                       "Community organisation manages 4-6 shared vehicles, maintenance included"
                      ),
                      
                      br(),
-                     h6("Coverage Area", style = "margin: 15px 0 10px 0; color: #495057; font-weight: bold;"),
+                     h6("Vehicle Availability", style = "margin: 15px 0 10px 0; color: #495057; font-weight: bold;"),
                      create_attribute_option(
-                       "p2p_local", "Immediate Neighbourhood", 0, 0, "walking distance", 
-                       "Vehicles within 200m, small local group of 8-12 households"
+                       "p2p_limited", "One Shared Vehicle", 0, 0, "weekend priority", 
+                       "Access to one vehicle shared among 4-5 households, mainly weekend availability"
                      ),
                      create_attribute_option(
-                       "p2p_extended", "Extended Area Network", 0, 10, "wider choice",
-                       "Multiple neighbourhood groups, vehicles within 800m, larger fleet"
+                       "p2p_multiple", "Multiple Vehicle Options", 0, 15, "better access",
+                       "Choice of 2-3 different vehicles, improved weekday availability"
                      )
                    )
                  ),
                  
-                 # PUBLIC TRANSPORT
+                 # PUBLIC TRANSPORT - Real West Yorkshire pricing
                  create_service_section(
-                   "Public Transport",
-                   "Integrated transport passes with different coverage and flexibility levels",
-                   50,
+                   "Public Transport Access",
+                   "Bus and rail travel across West Yorkshire using MCard system", 
+                   35,
                    "public", 
                    tagList(
-                     h6("Coverage Level", style = "margin: 0 0 10px 0; color: #495057; font-weight: bold;"),
+                     h6("Geographic Coverage", style = "margin: 0 0 10px 0; color: #495057; font-weight: bold;"),
                      create_attribute_option(
-                       "pt_local", "Local Area Pass", 35, 0, "Leeds zone",
-                       "Unlimited buses and local rail within Leeds boundary", is_default = TRUE
+                       "pt_leeds", "Leeds City Zone", 35, 0, "£2 max single",
+                       "All Leeds buses, local rail to Harrogate/York lines - £35/month unlimited", is_default = TRUE
                      ),
                      create_attribute_option(
-                       "pt_regional", "West Yorkshire Pass", 50, 15, "regional access",
-                       "All buses, trains, and metros across West Yorkshire"
+                       "pt_wyca", "West Yorkshire Wide", 50, 15, "cross-county",
+                       "All buses/Metro across Leeds, Bradford, Wakefield, Halifax, Huddersfield"
                      ),
                      create_attribute_option(
-                       "pt_national", "National Rail Included", 50, 40, "long distance", 
-                       "Regional pass plus discounted national rail travel", is_premium = TRUE
+                       "pt_northern", "Plus Northern Rail", 50, 35, "regional trains", 
+                       "WYCA pass plus discounted rail to Manchester, Sheffield, York"
                      ),
                      
                      br(),
-                     h6("Flexibility Options", style = "margin: 15px 0 10px 0; color: #495057; font-weight: bold;"),
+                     h6("Service Reliability", style = "margin: 15px 0 10px 0; color: #495057; font-weight: bold;"),
                      create_attribute_option(
-                       "pt_standard", "Standard Pass", 0, 0, "fixed monthly",
-                       "Monthly pass, no refunds, standard terms"
+                       "pt_current", "Current Service Levels", 0, 0, "existing routes",
+                       "Current bus frequencies, existing rail timetables, no service improvements"
                      ),
                      create_attribute_option(
-                       "pt_flexible", "Flexible Pass", 0, 12, "pause/resume", 
-                       "Can pause during holidays, partial refunds available"
+                       "pt_improved", "Enhanced Service Package", 0, 20, "better frequency", 
+                       "Bus rapid transit routes, increased frequencies on key corridors, real-time info"
                      )
                    )
                  ),
@@ -1724,40 +2526,40 @@ function(input, output, session) {
                  # MICROMOBILITY & ACTIVE TRAVEL
                  create_service_section(
                    "Micromobility & Active Travel",
-                   "E-bikes, scooters, and walking/cycling infrastructure access",
-                   10,
+                   "Bike share, e-scooters, and cycling infrastructure in Leeds",
+                   0,
                    "micro",
                    tagList(
-                     h6("Service Level", style = "margin: 0 0 10px 0; color: #495057; font-weight: bold;"),
+                     h6("Bike Share Access", style = "margin: 0 0 10px 0; color: #495057; font-weight: bold;"),
                      create_attribute_option(
-                       "micro_basic", "Basic Bike Share", 10, 0, "standard access",
-                       "Manual bikes, 30-minute journeys, docking stations", is_default = TRUE
+                       "micro_none", "No Bike Share", 0, 0, "own bike only",
+                       "Rely on personal bicycle, no shared mobility subscriptions", is_default = TRUE
                      ),
                      create_attribute_option(
-                       "micro_electric", "E-bike & E-scooter Access", 10, 15, "powered options",
-                       "Electric bikes and scooters, 45-minute journeys, more locations"
+                       "micro_donkey", "Donkey Republic Membership", 0, 12, "£1/30min unlock",
+                       "Access to docked e-bikes around Leeds city centre and university areas"
                      ),
                      create_attribute_option(
-                       "micro_premium", "Premium Active Mobility", 10, 25, "unlimited access",
-                       "All e-bike/scooter types, unlimited time, priority support", is_premium = TRUE
+                       "micro_multiple", "Multiple Operator Access", 0, 25, "all platforms",
+                       "Access to all available bike share and e-scooter operators in Leeds"
                      ),
                      
                      br(), 
-                     h6("Additional Services", style = "margin: 15px 0 10px 0; color: #495057; font-weight: bold;"),
+                     h6("Infrastructure Investment", style = "margin: 15px 0 10px 0; color: #495057; font-weight: bold;"),
                      create_attribute_option(
-                       "micro_storage", "Secure Cycle Storage", 0, 8, "safe parking",
-                       "Guaranteed secure parking at home, work, and transport hubs"
+                       "micro_current", "Current Infrastructure", 0, 0, "existing paths",
+                       "Use existing cycle lanes and paths, current storage arrangements"
                      ),
                      create_attribute_option(
-                       "micro_maintenance", "Bike Maintenance Package", 0, 12, "full service",
-                       "Annual service, repairs, and breakdown assistance for personal bikes"
+                       "micro_improved", "Enhanced Cycling Package", 0, 18, "better access",
+                       "Secure parking at home/work, priority cycle lane network, maintenance support"
                      )
                    )
                  ),
                  
                  br(),
                  div(align="center",
-                     actionButton("to_sa_button5", "Continue with Portfolio", class="btn-primary btn-lg", style="margin: 20px 0;")
+                     actionButton("to_sa_button6", "Continue with Portfolio", class="btn-primary btn-lg", style="margin: 20px 0;")
                  )
           ),
           
@@ -1835,343 +2637,6 @@ function(input, output, session) {
         $('#basket-total-amount').text('£' + totalCost);
       }
     "))
-    )
-  })
-  
-  # This UI placeholder now just creates the box where the text will go.
-  # ========= VERSION 5 (MENU BUILDER) - NEW =========
-  
-  output$sa_ui_placeholder6 <- renderUI({
-    
-    # Gatekeeper
-    req(input$num_cars)
-    
-    # Current car details for display
-    current_cars <- if(input$num_cars != "0") {
-      cars_count <- switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4)
-      paste0("Currently own ", input$num_cars, " car", if(cars_count > 1) "s" else "")
-    } else {
-      "Currently car-free"
-    }
-    
-    # Cost calculation function
-    cost_func <- function(fuel, mileage) {
-      base_costs <- list("Petrol"=150*1.25, "Diesel"=160*1.25, "Fully Electric"=80, "Plug-in Hybrid"=120*1.15)
-      parking <- switch(mileage, "0-2,000"=5, "2,001-5,000"=10, "5,001-10,000"=15, "10,001+"=20, 0)
-      multiplier <- switch(mileage, "0-2,000"=0.6, "2,001-5,000"=1.0, "5,001-10,000"=1.5, "10,001+"=2.2, 1)
-      return(round((base_costs[[fuel]] * multiplier) + (parking * 1.20), 0))
-    }
-    
-    # Service option creator
-    create_service_option <- function(option_id, title, price, description, is_default = FALSE) {
-      div(
-        class = paste("service-option", if(is_default) "default-option"),
-        id = option_id,
-        onclick = paste0("Shiny.setInputValue('", option_id, "_clicked', Math.random())"),
-        style = "cursor: pointer; margin-bottom: 8px;",
-        fluidRow(
-          column(8,
-                 div(style = "display: flex; align-items: center;",
-                     h6(title, style = "margin: 0; flex-grow: 1;"),
-                     if(is_default) span(class = "default-badge", "Current")
-                 ),
-                 p(description, class = "service-description", style = "margin: 2px 0 0 0; color: #666; font-size: 0.85em;")
-          ),
-          column(4, align = "right",
-                 span(class = "service-price", paste0("£", price, "/month"), style = "font-size: 1.1em; font-weight: bold; color: #28a745;")
-          )
-        )
-      )
-    }
-    
-    # Fleet choice section creator
-    create_fleet_choice <- function(choice_title, choice_description, choice_id, service_options, is_current = FALSE) {
-      tagList(
-        div(class = paste("fleet-choice-header", if(is_current) "current-choice"),
-            onclick = paste0("$('#", choice_id, "_services').toggle(); $(this).toggleClass('active');"),
-            style = "cursor: pointer; padding: 20px; margin: 15px 0; border-radius: 8px; background: linear-gradient(135deg, #495057 0%, #343a40 100%); color: white;",
-            fluidRow(
-              column(10,
-                     h4(choice_title, style = "margin: 0;"),
-                     p(choice_description, style = "margin: 5px 0 0 0; opacity: 0.9;")
-              ),
-              column(2, align = "right",
-                     if(is_current) span("CURRENT", style = "background: #ffc107; color: #000; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; font-weight: bold;"),
-                     br(),
-                     span("Click to explore", style = "font-size: 0.8em; opacity: 0.8;")
-              )
-            )
-        ),
-        div(id = paste0(choice_id, "_services"), class = "fleet-services", style = "display: none; background: #f8f9fa; padding: 20px; border-radius: 0 0 8px 8px; margin-bottom: 20px;",
-            service_options
-        )
-      )
-    }
-    
-    # Calculate current ownership cost
-    current_cost <- if(input$num_cars != "0") {
-      total_cost <- 0
-      cars_count <- switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4)
-      for(i in 1:cars_count) {
-        if(!is.null(input[[paste0("car", i, "_fuel")]]) && !is.null(input[[paste0("car", i, "_mileage")]])) {
-          total_cost <- total_cost + cost_func(input[[paste0("car", i, "_fuel")]], input[[paste0("car", i, "_mileage")]])
-        }
-      }
-      total_cost
-    } else {
-      0
-    }
-    
-    # Basket display
-    output$fleet_basket_display <- renderUI({
-      div(class = "fleet-basket",
-          h5("Selected Fleet Strategy", style = "margin-bottom: 10px;"),
-          div(id = "fleet-basket-items", style = "min-height: 40px;",
-              p("Select your preferred fleet choice below", style = "color: #666; font-style: italic;")
-          ),
-          hr(style = "margin: 10px 0;"),
-          div(class = "basket-total",
-              span("Monthly Total: ", style = "font-weight: bold;"),
-              span(id = "fleet-total-amount", "£0", style = "font-weight: bold; font-size: 1.3em; color: #28a745;")
-          )
-      )
-    })
-    
-    # Main UI
-    tagList(
-      tags$style(HTML("
-        .fleet-choice-header { transition: all 0.3s ease; }
-        .fleet-choice-header:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-        .fleet-choice-header.active { background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important; }
-        .fleet-choice-header.current-choice { background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important; }
-        
-        .service-option { 
-          background: #fff; 
-          border: 1px solid #e9ecef; 
-          border-radius: 6px; 
-          padding: 12px; 
-          transition: all 0.15s ease;
-        }
-        .service-option:hover { 
-          border-color: #007bff; 
-          box-shadow: 0 2px 8px rgba(0,123,255,0.1); 
-          transform: translateY(-1px);
-        }
-        .service-option.selected { 
-          border-color: #28a745; 
-          background-color: #f8fff9;
-          box-shadow: 0 0 0 2px rgba(40,167,69,0.2);
-        }
-        .service-option.default-option { background-color: #f8f9fa; }
-        
-        .default-badge { 
-          background: #007bff; color: white; padding: 2px 6px; border-radius: 10px; font-size: 0.7em; margin-left: 8px;
-        }
-        
-        .sticky-sidebar {
-          position: sticky;
-          top: 20px;
-          height: fit-content;
-          max-height: calc(100vh - 40px);
-          overflow-y: auto;
-        }
-        
-        .scenario-info {
-          background-color: #f8f9fa; 
-          border: 1px solid #dee2e6; 
-          padding: 20px; 
-          border-radius: 8px;
-          margin-bottom: 20px;
-        }
-        
-        .fleet-basket {
-          background-color: #fff3cd; 
-          border: 1px solid #ffeaa7; 
-          padding: 20px; 
-          border-radius: 8px;
-        }
-        
-        @media (max-width: 768px) {
-          .sticky-sidebar {
-            position: static;
-            margin-bottom: 20px;
-          }
-        }
-      ")),
-      
-      div(class = "container-fluid", style = "max-width: 1200px; margin-top: 20px;",
-          fluidRow(
-            # Main content
-            column(8,
-                   div(style="text-align: center; margin-bottom: 30px;",
-                       h2("Your Fleet Strategy for 2030"),
-                       p(current_cars, style = "font-size: 1.1em; color: #495057;"),
-                       p("Given the new scenario conditions, what would be your household's best car ownership strategy? Click each option to explore the services you'd combine with that fleet choice.")
-                   ),
-                   
-                   # KEEP ALL CURRENT CARS
-                   if(input$num_cars != "0") {
-                     create_fleet_choice(
-                       "Keep All Current Cars",
-                       paste0("Maintain ownership of your existing ", input$num_cars, " car", if(as.numeric(input$num_cars) > 1) "s" else "", " with complementary services"),
-                       "keep_all",
-                       tagList(
-                         h6("Your Current Fleet Cost:", style = "color: #495057; margin-bottom: 15px;"),
-                         create_service_option("keep_basic", "Basic Ownership", current_cost, "Continue with current setup under new scenario conditions", is_default = TRUE),
-                         create_service_option("keep_plus_carclub", "Ownership + Car Club", current_cost + 35, "Keep cars for regular use, add car club for city trips/backup"),
-                         create_service_option("keep_plus_services", "Enhanced Ownership Package", current_cost + 45, "Premium insurance, breakdown cover, plus mobility services"),
-                         
-                         br(),
-                         h6("Why keep all cars?", style = "color: #495057; margin: 15px 0 10px 0;"),
-                         p("• Immediate availability when needed", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
-                         p("• Personal space and belongings", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
-                         p("• No booking or sharing hassles", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
-                         p("• Flexibility for spontaneous trips", style = "margin: 2px 0; font-size: 0.9em; color: #666;")
-                       ),
-                       is_current = TRUE
-                     )
-                   },
-                   
-                   # REDUCE CARS
-                   if(input$num_cars != "0" && as.numeric(input$num_cars) > 1) {
-                     create_fleet_choice(
-                       "Reduce to Fewer Cars",
-                       "Give up one or more cars and replace with shared mobility services",
-                       "reduce_cars",
-                       tagList(
-                         h6("Which car would you give up first?", style = "color: #495057; margin-bottom: 15px;"),
-                         if(input$num_cars == "2") {
-                           tagList(
-                             create_service_option("reduce_keep_car1", paste("Keep Car 1:", input$car1_fuel, input$car1_type), 
-                                                   cost_func(input$car1_fuel, input$car1_mileage) + 50, 
-                                                   "Keep primary car, replace second with car club + public transport"),
-                             if(!is.null(input$car2_fuel)) {
-                               create_service_option("reduce_keep_car2", paste("Keep Car 2:", input$car2_fuel, input$car2_type), 
-                                                     cost_func(input$car2_fuel, input$car2_mileage) + 50, 
-                                                     "Keep second car, replace primary with shared services")
-                             }
-                           )
-                         } else {
-                           create_service_option("reduce_to_one", "Reduce to One Car", 
-                                                 min(sapply(1:as.numeric(input$num_cars), function(i) {
-                                                   if(!is.null(input[[paste0("car", i, "_fuel")]])) cost_func(input[[paste0("car", i, "_fuel")]], input[[paste0("car", i, "_mileage")]]) else 150
-                                                 }), na.rm = TRUE) + 60, 
-                                                 "Keep most efficient car, comprehensive mobility services for other needs")
-                         },
-                         
-                         br(),
-                         h6("What would replace the car(s)?", style = "color: #495057; margin: 15px 0 10px 0;"),
-                         p("• Guaranteed car club access", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
-                         p("• Enhanced public transport pass", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
-                         p("• E-bike and micro-mobility options", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
-                         p("• Taxi/ride-hailing budget included", style = "margin: 2px 0; font-size: 0.9em; color: #666;")
-                       )
-                     )
-                   },
-                   
-                   # GO CAR-FREE
-                   if(input$num_cars != "0") {
-                     create_fleet_choice(
-                       "Go Completely Car-Free",
-                       "Give up all car ownership and rely entirely on shared mobility",
-                       "go_carfree",
-                       tagList(
-                         h6("Complete mobility package:", style = "color: #495057; margin-bottom: 15px;"),
-                         create_service_option("carfree_basic", "Essential Car-Free Package", 85, "Car club + public transport + basic e-bike access"),
-                         create_service_option("carfree_premium", "Premium Car-Free Package", 120, "Guaranteed car access + comprehensive PT + full mobility services"),
-                         create_service_option("carfree_luxury", "Car-Free with On-Demand", 180, "All services plus taxi/ride-hailing allowance for convenience"),
-                         
-                         br(),
-                         h6("This works best if you:", style = "color: #495057; margin: 15px 0 10px 0;"),
-                         p("• Live in well-connected urban area", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
-                         p("• Have predictable travel patterns", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
-                         p("• Don't need cars for work/cargo", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
-                         p("• Value cost savings over convenience", style = "margin: 2px 0; font-size: 0.9em; color: #666;")
-                       )
-                     )
-                   },
-                   
-                   # ADD ANOTHER CAR
-                   create_fleet_choice(
-                     "Add Another Car",
-                     if(input$num_cars == "0") "Get your first car with supporting services" else "Expand fleet to meet growing needs",
-                     "add_car",
-                     tagList(
-                       h6("What type of additional car?", style = "color: #495057; margin-bottom: 15px;"),
-                       create_service_option("add_basic", "Basic Additional Car", 200, "Standard petrol/diesel car for extra capacity"),
-                       create_service_option("add_electric", "Electric Vehicle", 280, "New EV with home charging installation"),
-                       create_service_option("add_specialist", "Specialist Vehicle", 250, "Van, SUV, or other specific-purpose vehicle"),
-                       
-                       br(),
-                       h6("You might need this if:", style = "color: #495057; margin: 15px 0 10px 0;"),
-                       p("• Household size is growing", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
-                       p("• Work requirements have changed", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
-                       p("• Current car(s) insufficient for needs", style = "margin: 2px 0; font-size: 0.9em; color: #666;"),
-                       p("• Want different car types for different uses", style = "margin: 2px 0; font-size: 0.9em; color: #666;")
-                     )
-                   ),
-                   
-                   br(),
-                   div(align="center",
-                       actionButton("continue_fleet_button", "Continue with Fleet Strategy", class="btn-primary btn-lg", style="margin: 20px 0;")
-                   )
-            ),
-            
-            # Sticky sidebar
-            column(4, class = "sticky-sidebar",
-                   # Scenario info
-                   div(class = "scenario-info",
-                       h5("Leeds 2030 Scenario:", style = "margin-top: 0;"),
-                       tags$table(
-                         class="table table-sm table-borderless", style="margin-bottom: 0;",
-                         tags$tbody(
-                           tags$tr(tags$td(icon("gas-pump"), " Fuel prices:"), tags$td("+60p/litre")),
-                           tags$tr(tags$td(icon("parking"), " Parking:"), tags$td("+20% permits")),  
-                           tags$tr(tags$td(icon("bus"), " Public transport:"), tags$td("New integrated passes")),
-                           tags$tr(tags$td(icon("share-alt"), " Mobility services:"), tags$td("Expanded car sharing"))
-                         )
-                       )
-                   ),
-                   
-                   # Fleet basket
-                   div(class = "fleet-basket",
-                       uiOutput("fleet_basket_display")
-                   )
-            )
-          )
-      ),
-      
-      # JavaScript for interaction
-      tags$script(HTML("
-        $(document).on('click', '.service-option', function() {
-          var $option = $(this);
-          var $section = $option.closest('.fleet-services');
-          
-          // Only allow one selection per fleet choice section
-          $section.find('.service-option.selected').removeClass('selected');
-          $option.addClass('selected');
-          
-          updateFleetBasket();
-        });
-        
-        function updateFleetBasket() {
-          var selectedOption = $('.service-option.selected');
-          var $basketItems = $('#fleet-basket-items');
-          
-          if (selectedOption.length === 0) {
-            $basketItems.html('<p style=\"color: #666; font-style: italic;\">Select your preferred fleet choice below</p>');
-            $('#fleet-total-amount').text('£0');
-          } else {
-            var title = selectedOption.find('h6').text();
-            var priceText = selectedOption.find('.service-price').text();
-            var price = parseFloat(priceText.replace('£', '').replace('/month', ''));
-            
-            var itemHtml = '<div style=\"padding: 5px 0; font-size: 0.9em;\"><strong>' + title + '</strong></div>';
-            $basketItems.html(itemHtml);
-            $('#fleet-total-amount').text('£' + price);
-          }
-        }
-      "))
     )
   })
  
