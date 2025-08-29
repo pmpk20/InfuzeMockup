@@ -1854,10 +1854,10 @@ function(input, output, session) {
       return(round((base_costs[[fuel]] * multiplier) + (parking * 1.20), 0))
     }
     
-    # --- BUDGET ALLOCATOR UI ---
     current_vehicle_costs <- if(input$num_cars != "0") {
       total_cost <- 0
-      num_vehicles_to_process <- switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4)
+      num_vehicles_to_process <- switch(input$num_cars, 
+                                        "0"=0, "1"=1, "2"=2, "3"=3, "4+"=4)
       for(i in 1:num_vehicles_to_process) {
         fuel_input <- input[[paste0("car", i, "_fuel")]]; mileage_input <- input[[paste0("car", i, "_mileage")]]
         if (!is.null(fuel_input) && !is.null(mileage_input)) {
@@ -1869,230 +1869,223 @@ function(input, output, session) {
     
     scenario_budget <- max(300, current_vehicle_costs * 1.2)
     
-    # Main budget allocation interface
     tagList(
-      # Budget overview header
+      # Single consolidated budget header
       div(class = "budget-overview",
-          style = "background: linear-gradient(135deg, #6c757d 0%, #495057 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 30px;",
+          style = "background: linear-gradient(135deg, #6c757d 0%, #495057 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 30px; max-width: 900px; margin-left: auto; margin-right: auto;",
           fluidRow(
-            column(6,
-                   h4("Your 2030 Transport Budget", style = "margin: 0 0 10px 0;"),
-                   p("Current spending:", style = "margin: 0; opacity: 0.8;"),
-                   h5(paste0("£", current_vehicle_costs, "/month"), style = "margin: 0 0 10px 0;"),
-                   p("2030 scenario budget:", style = "margin: 0; opacity: 0.8;"),
+            column(4,
+                   h4("2030 Transport Budget", style = "margin: 0 0 10px 0;"),
+                   p("Current:", style = "margin: 0; opacity: 0.8;"),
+                   h5(paste0("£", current_vehicle_costs, "/month"), style = "margin: 0 0 5px 0;"),
+                   p("Budget:", style = "margin: 0; opacity: 0.8;"),
                    h3(paste0("£", round(scenario_budget), "/month"), style = "margin: 0; color: #ffc107;")
             ),
-            column(6, align = "right",
-                   div(style = "margin-top: 20px;",
+            column(4,
+                   div(style = "text-align: center; margin-top: 10px;",
+                       span("Allocated: ", style = "opacity: 0.8;"),
+                       br(),
+                       span(id = "allocated_budget", "£0", 
+                            style = "font-size: 1.5em; font-weight: bold; color: #17a2b8;"),
+                       br(),
                        span("Remaining: ", style = "opacity: 0.8;"),
                        br(),
                        span(id = "remaining_budget", paste0("£", round(scenario_budget)), 
-                            style = "font-size: 2em; font-weight: bold; color: #28a745;")
-                   )
-            )
-          )
-      ),
-      
-      # Budget allocation sliders/options
-      div(class = "budget-sections",
-          
-          # VEHICLE OWNERSHIP BUDGET
-          div(class = "budget-section vehicle-section",
-              style = "border: 2px solid #007bff; border-radius: 8px; padding: 20px; margin-bottom: 20px; background: #f8f9ff;",
-              h5("Vehicle Ownership", style = "color: #007bff; margin-bottom: 15px;"),
-              
-              if(input$num_cars == "0") {
-                # For 0-car households - acquisition choices
-                tagList(
-                  div(class = "budget-item",
-                      fluidRow(
-                        column(8,
-                               radioButtons("vehicle_choice", NULL, inline = FALSE,
-                                            choices = list(
-                                              "Stay car-free (£0/month)" = 0,
-                                              "Used petrol car (£180/month)" = 180,
-                                              "New petrol car (£285/month)" = 285, 
-                                              "Used electric car (£195/month)" = 195,
-                                              "New electric car (£320/month)" = 320
-                                            ), selected = 0)
-                        ),
-                        column(4, align = "right",
-                               div(style = "padding-top: 15px;",
-                                   span(id = "vehicle_budget_display", "£0", 
-                                        style = "font-size: 1.5em; font-weight: bold; color: #007bff;")
-                               )
-                        )
-                      )
-                  )
-                )
-              } else {
-                # For car owners - fleet modification choices
-                tagList(
-                  div(class = "budget-item",
-                      h6("Fleet Strategy", style = "margin-bottom: 10px;"),
-                      fluidRow(
-                        column(8,
-                               radioButtons("fleet_strategy", NULL, inline = FALSE,
-                                            choices = {
-                                              # Build choices dynamically
-                                              choices_list <- list()
-                                              choices_list[[paste0("Keep all ", input$num_cars, " vehicles (£", current_vehicle_costs, "/month)")]] <- current_vehicle_costs
-                                              if (as.numeric(gsub("\\+", "", input$num_cars)) > 1) {
-                                                choices_list[[paste0("Downsize to ", as.numeric(gsub("\\+", "", input$num_cars)) - 1, " vehicle(s) (£", round(current_vehicle_costs * 0.65), "/month)")]] <- round(current_vehicle_costs * 0.65)
-                                              }
-                                              if (as.numeric(gsub("\\+", "", input$num_cars)) > 1) {
-                                                choices_list[[paste0("Keep only 1 vehicle (£", round(current_vehicle_costs * 0.35), "/month)")]] <- round(current_vehicle_costs * 0.35)
-                                              }
-                                              choices_list[["Sell all vehicles (£0/month)"]] <- 0
-                                              choices_list
-                                            }, selected = current_vehicle_costs)
-                        ),
-                        column(4, align = "right", 
-                               div(style = "padding-top: 15px;",
-                                   span(id = "fleet_budget_display", paste0("£", current_vehicle_costs), 
-                                        style = "font-size: 1.5em; font-weight: bold; color: #007bff;")
-                               )
-                        )
-                      )
-                  )
-                )
-              }
-          ),
-          
-          # CAR CLUB BUDGET
-          div(class = "budget-section carclub-section",
-              style = "border: 2px solid #4CAF50; border-radius: 8px; padding: 20px; margin-bottom: 20px; background: #f8fff8;",
-              h5("2. Car Club Access", style = "color: #4CAF50; margin-bottom: 15px;"),
-              radioButtons("carclub_choice", label = "Choose your level of car club access:", inline = FALSE,
-                           choices = list(
-                             "None (No access)" = 0,
-                             "Occasional Use (£30/month): Access for planned trips, e.g., monthly shopping" = 30,
-                             "Regular Use (£75/month): Can act as a reliable backup to your main transport" = 75,
-                             "Heavy Use (£130/month): A viable replacement for a second car" = 130
-                           ), selected = 0)
-          ),
-          
-          # PUBLIC TRANSPORT BUDGET  
-          div(class = "budget-section pt-section",
-              style = "border: 2px solid #00BCD4; border-radius: 8px; padding: 20px; margin-bottom: 20px; background: #f0fdff;",
-              h5("Public Transport", style = "color: #00BCD4; margin-bottom: 15px;"),
-              fluidRow(
-                column(8,
-                       sliderInput("pt_budget", "Monthly public transport spending:",
-                                   min = 0, max = 120, value = 0, step = 10,
-                                   pre = "£", post = "/month")
-                ),
-                column(4, align = "right",
-                       div(style = "margin-top: 25px;",
-                           span(id = "pt_level", "No pass", style = "font-weight: bold; color: #00BCD4;")
-                       )
-                )
-              ),
-              div(id = "pt_description", style = "margin-top: 10px; padding: 10px; background: white; border-radius: 4px; font-size: 0.9em;",
-                  "Pay per journey or no public transport use"
-              )
-          ),
-          
-          # MICROMOBILITY BUDGET
-          div(class = "budget-section micro-section", 
-              style = "border: 2px solid #FF9800; border-radius: 8px; padding: 20px; margin-bottom: 20px; background: #fffaf0;",
-              h5("Bike Share & Active Travel", style = "color: #FF9800; margin-bottom: 15px;"),
-              fluidRow(
-                column(8,
-                       sliderInput("micro_budget", "Monthly micromobility spending:",
-                                   min = 0, max = 50, value = 0, step = 5,
-                                   pre = "£", post = "/month")
-                ),
-                column(4, align = "right",
-                       div(style = "margin-top: 25px;", 
-                           span(id = "micro_level", "None", style = "font-weight: bold; color: #FF9800;")
-                       )
-                )
-              ),
-              div(id = "micro_description", style = "margin-top: 10px; padding: 10px; background: white; border-radius: 4px; font-size: 0.9em;",
-                  "Walk/cycle using own equipment only"
-              )
-          )
-      ),
-      
-      # Budget validation and continuation
-      div(class = "budget-summary",
-          style = "background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 30px auto; max-width: 800px;",
-          fluidRow(
-            column(8,
-                   h5("Portfolio Summary", style = "margin-bottom: 15px;"),
-                   div(id = "portfolio_summary", 
-                       "Allocate your budget using the controls above"
+                            style = "font-size: 1.8em; font-weight: bold; color: #28a745;")
                    )
             ),
-            column(4, align = "right",
-                   div(style = "text-align: center; padding: 15px; background: white; border-radius: 8px;",
-                       span("Budget Status:", style = "display: block; margin-bottom: 5px;"),
-                       span(id = "budget_status", "£0 allocated", 
-                            style = "font-size: 1.3em; font-weight: bold; color: #28a745;"),
-                       br(), br(),
+            column(4,
+                   div(style = "text-align: center; padding-top: 20px;",
+                       div(id = "portfolio_summary", "Select options below", 
+                           style = "font-size: 0.9em; opacity: 0.8; margin-bottom: 15px; min-height: 40px;"),
                        actionButton("continue_budget", "Continue with Portfolio", 
-                                    class = "btn-primary", disabled = TRUE)
+                                    class = "btn-warning", disabled = TRUE, style = "font-weight: bold;")
                    )
             )
           )
       ),
       
-      # JavaScript for budget allocation logic
-      # --- REVISED: JavaScript for new radio button logic ---
+      # Budget allocation in columns - more efficient layout
+      div(style = "max-width: 900px; margin: 0 auto;",
+          fluidRow(
+            # Column 1: Vehicle Ownership
+            column(6,
+                   div(class = "budget-section",
+                       style = "border: 2px solid #007bff; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: #f8f9ff; height: 280px;",
+                       h6("Vehicle Ownership", style = "color: #007bff; margin-bottom: 10px; font-weight: bold;"),
+                       
+                       if(input$num_cars == "0") {
+                         checkboxInput("add_vehicle", "Add one vehicle (£225)", value = FALSE)
+                       } else {
+                         tagList(
+                           h6("Fleet Changes", style = "font-size: 0.9em; margin-bottom: 8px; color: #666;"),
+                           checkboxInput("keep_current", paste0("Keep current fleet (£", current_vehicle_costs, ")"), value = TRUE),
+                           checkboxInput("add_vehicle", "Add one vehicle (£225)", value = FALSE),
+                           if (as.numeric(gsub("\\+", "", input$num_cars)) > 1) {
+                             checkboxInput("downsize_fleet", paste0("Downsize by 1 car (-£", round(current_vehicle_costs * 0.35), ")"), value = FALSE)
+                           },
+                           hr(style = "margin: 15px 0 10px 0;"),
+                           h6("How much would you drive?", style = "font-size: 0.9em; margin-bottom: 8px; color: #666;"),
+                           radioButtons("car_usage", NULL, inline = TRUE,
+                                        choices = list("Same as now" = 1.0, "25% less" = 0.75, "50% less" = 0.5, "75% less" = 0.25), 
+                                        selected = 1.0)
+                         )
+                       }
+                   )
+            ),
+            
+            # Column 2: Car Club
+            column(6,
+                   div(class = "budget-section",
+                       style = "border: 2px solid #4CAF50; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: #f8fff8; height: 280px;",
+                       h6("Car-Sharing Membership", style = "color: #4CAF50; margin-bottom: 10px; font-weight: bold;"),
+                       
+                       # Access level
+                       div(style = "margin-bottom: 12px;",
+                           h6("Access Distance", style = "font-size: 0.9em; margin-bottom: 5px; color: #666;"),
+                           radioButtons("carclub_access", NULL, inline = TRUE,
+                                        choices = list("None" = 0, "On-street" = 25, "5min walk" = 35, "At home" = 55), 
+                                        selected = 0)
+                       ),
+                       
+                       # Availability - always show
+                       div(style = "margin-bottom: 12px;",
+                           h6("Availability", style = "font-size: 0.9em; margin-bottom: 5px; color: #666;"),
+                           radioButtons("carclub_hours", NULL, inline = TRUE,
+                                        choices = list("9-5" = 0, "Extended" = 15, "24/7" = 25), 
+                                        selected = 0)
+                       ),
+                       
+                       # Usage level - always show
+                       div(style = "margin-bottom: 12px;",
+                           h6("Usage Level", style = "font-size: 0.9em; margin-bottom: 5px; color: #666;"),
+                           radioButtons("carclub_usage", NULL, inline = TRUE,
+                                        choices = list("Light" = 0, "Regular" = 20, "Heavy" = 45), 
+                                        selected = 0)
+                       ),
+                       
+                       # Cost display
+                       div(id = "carclub_cost_display", 
+                           style = "margin-top: 10px; padding: 8px; background: white; border-radius: 4px; text-align: center; font-weight: bold; color: #4CAF50;",
+                           "£0/month")
+                   )
+            )
+          ),
+          
+          fluidRow(
+            # Column 3: Public Transport
+            column(6,
+                   div(class = "budget-section",
+                       style = "border: 2px solid #00BCD4; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: #f0fdff; height: 180px;",
+                       h6("Public Transport", style = "color: #00BCD4; margin-bottom: 10px; font-weight: bold;"),
+                       sliderInput("pt_budget", "Monthly spending:",
+                                   min = 0, max = 120, value = 0, step = 10,
+                                   pre = "£", post = "/month"),
+                       div(id = "pt_description", style = "font-size: 0.85em; color: #666; margin-top: 5px;",
+                           "Pay per journey")
+                   )
+            ),
+            
+            # Column 4: Micromobility
+            column(6,
+                   div(class = "budget-section",
+                       style = "border: 2px solid #FF9800; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: #fffaf0; height: 180px;",
+                       h6("Bike Share & Active", style = "color: #FF9800; margin-bottom: 10px; font-weight: bold;"),
+                       sliderInput("micro_budget", "Monthly spending:",
+                                   min = 0, max = 50, value = 0, step = 5,
+                                   pre = "£", post = "/month"),
+                       div(id = "micro_description", style = "font-size: 0.85em; color: #666; margin-top: 5px;",
+                           "Own equipment only")
+                   )
+            )
+          )
+      ),
+      
+      # Simplified JavaScript - fixed slider integration
       tags$script(HTML(paste0("
         var scenarioBudget = ", round(scenario_budget), ";
         
         function updateBudgetDisplay() {
-          var vehicleCost = parseInt($('input[name=\"fleet_strategy\"]:checked, input[name=\"vehicle_choice\"]:checked').val()) || 0;
-          var carclubCost = parseInt($('input[name=\"carclub_choice\"]:checked').val()) || 0;
-          var ptCost = parseInt($('input[name=\"pt_choice\"]:checked').val()) || 0;
-          var microCost = parseInt($('input[name=\"micro_choice\"]:checked').val()) || 0;
+          // Calculate vehicle costs
+          var vehicleCost = 0;
+          var usageMultiplier = parseFloat($('input[name=\"car_usage\"]:checked').val()) || 1.0;
+          
+          // For 0-car households
+          if ($('#add_vehicle').is(':checked')) {
+            vehicleCost += 225;
+          }
+          
+          // For existing car households
+          if ($('#keep_current').is(':checked')) {
+            vehicleCost += ", current_vehicle_costs, " * usageMultiplier;
+          }
+          if ($('#add_vehicle').is(':checked')) vehicleCost += 225;
+          if ($('#downsize_fleet').is(':checked')) vehicleCost -= ", round(current_vehicle_costs * 0.35), ";
+          
+          // Car-sharing cost calculation
+          var accessCost = parseInt($('input[name=\"carclub_access\"]:checked').val()) || 0;
+          var hoursCost = parseInt($('input[name=\"carclub_hours\"]:checked').val()) || 0;
+          var usageCost = parseInt($('input[name=\"carclub_usage\"]:checked').val()) || 0;
+          var carclubCost = accessCost + hoursCost + usageCost;
+          
+          var ptCost = parseInt($('#pt_budget').val()) || 0;
+          var microCost = parseInt($('#micro_budget').val()) || 0;
+          
+          // Update car-sharing cost display
+          $('#carclub_cost_display').text('£' + carclubCost + '/month');
           
           var totalAllocated = vehicleCost + carclubCost + ptCost + microCost;
           var remaining = scenarioBudget - totalAllocated;
           
+          $('#allocated_budget').text('£' + totalAllocated);
           $('#remaining_budget').text('£' + remaining);
-          $('#budget_status').text('£' + totalAllocated + ' allocated');
           
+          // Budget status styling
           if (remaining < 0) {
             $('#remaining_budget').css('color', '#dc3545');
-            $('#budget_status').css('color', '#dc3545');
+            $('#continue_budget').prop('disabled', true);
+          } else if (remaining === scenarioBudget) {
+            $('#remaining_budget').css('color', '#6c757d');
             $('#continue_budget').prop('disabled', true);
           } else {
             $('#remaining_budget').css('color', '#28a745');
-            $('#budget_status').css('color', '#28a745'); 
             $('#continue_budget').prop('disabled', false);
           }
           
-          updatePortfolioSummary(vehicleCost, carclubCost, ptCost, microCost);
+          // Update descriptions
+          updateDescriptions(ptCost, microCost, totalAllocated, usageMultiplier);
         }
         
-        function updatePortfolioSummary(vehicle, carclub, pt, micro) {
-          var summary_html = '';
-          var vehicle_text = $('input[name=\"fleet_strategy\"]:checked, input[name=\"vehicle_choice\"]:checked').parent().text().trim();
-          summary_html += '<div>' + vehicle_text + '</div>';
+        function updateDescriptions(pt, micro, total, usage) {
+          // PT description
+          var ptDesc = pt === 0 ? 'Pay per journey' : 
+                      pt <= 30 ? 'Local bus pass' :
+                      pt <= 60 ? 'Regional pass' :
+                      pt <= 90 ? 'City-wide pass' : 'Premium pass';
+          $('#pt_description').text(ptDesc);
           
-          if (carclub > 0) {
-            summary_html += '<div>' + $('input[name=\"carclub_choice\"]:checked').parent().text().trim() + '</div>';
+          // Micro description  
+          var microDesc = micro === 0 ? 'Own equipment only' :
+                         micro <= 15 ? 'Basic bike share' :
+                         micro <= 30 ? 'Regular bike share' : 'Premium access';
+          $('#micro_description').text(microDesc);
+          
+          // Portfolio summary
+          var summary = total === 0 ? 'Select options below' : '£' + total + ' monthly';
+          if (usage < 1.0) {
+            summary += ' (reduced car use)';
           }
-          if (pt > 0) {
-            summary_html += '<div>' + $('input[name=\"pt_choice\"]:checked').parent().text().trim() + '</div>';
-          }
-          if (micro > 0) {
-            summary_html += '<div>' + $('input[name=\"micro_choice\"]:checked').parent().text().trim() + '</div>';
-          }
-          $('#portfolio_summary').html(summary_html);
+          $('#portfolio_summary').text(summary);
         }
         
-        // Event listeners for ALL radio button groups
-        $(document).on('change', 'input[type=radio]', updateBudgetDisplay);
+        // Event listeners
+        $(document).on('change', 'input[type=radio], input[type=checkbox]', updateBudgetDisplay);
+        $(document).on('input change', '#pt_budget, #micro_budget', updateBudgetDisplay);
         
-        // Initial call on load
-        updateBudgetDisplay();
+        // Initial call
+        $(document).ready(updateBudgetDisplay);
       ")))
     )
-    
   })
   
     
@@ -2388,11 +2381,7 @@ function(input, output, session) {
                            "replace_oldest_ev", "Replace Oldest with Electric", 0, 45, "EV upgrade",
                            "Trade oldest vehicle for 2-3 year old EV, install home charging"
                          ),
-                         create_attribute_option(
-                           "upgrade_insurance_all", "Enhanced Insurance (All Vehicles)", 0, 25 * as.numeric(input$num_cars), "premium cover",  
-                           "Comprehensive plus European breakdown, courtesy car, protected no claims"
-                         ),
-                         
+
                          # Addition options (if not at maximum)
                          if (input$num_cars %in% c("1", "2", "3")) {
                            create_attribute_option(
