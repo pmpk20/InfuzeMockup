@@ -473,16 +473,16 @@ fluidPage(
     # tabPanel("Choices: Version 1 Simple replace", value = "sa_panel", uiOutput("sa_ui_placeholder")),
     
     # =========== Part 2: Stated Adaptation (SA) - Placeholder ===========
-    tabPanel("Choices: Version 1: CE", value = "sa_panel_2", uiOutput("sa_ui_placeholder2")),
+    tabPanel("Choices: Version 1: CE (Old)", value = "sa_panel_2", uiOutput("sa_ui_placeholder2")),
     
     # =========== Part 2: Stated Adaptation (SA) - OLD ===========
-    tabPanel("Choices: Version 2: CE Packages", value = "sa_panel_3", uiOutput("sa_ui_placeholder3")),
+    tabPanel("Choices: Version 2: Menu by no. trips", value = "sa_panel_3", uiOutput("sa_ui_placeholder3")),
     
     # =========== Part 2: Stated Adaptation (SA) - Placeholder ===========
-    tabPanel("Choices: Version 3: Configurator", value = "sa_panel_4", uiOutput("sa_ui_placeholder4")),
+    tabPanel("Choices: Version 3: Menu by slider", value = "sa_panel_4", uiOutput("sa_ui_placeholder4")),
 
     # =========== Part 3: MENU BASED ===========
-    tabPanel("Choices: Version 4: Menu", value = "sa_panel_5", uiOutput("sa_ui_placeholder5")),
+    tabPanel("Choices: Version 4: Budget Allocator", value = "sa_panel_5", uiOutput("sa_ui_placeholder5")),
     
     # =========== Part 3B: MENU BASED ===========
     tabPanel("Choices: Version 5: Different Menu", value = "sa_panel_6", uiOutput("sa_ui_placeholder6")),
