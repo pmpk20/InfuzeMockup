@@ -545,431 +545,201 @@ function(input, output, session) {
     
   
   
-  # ========= Version 2: Menu by number of trips =========
+  # ========= Version 2: CE by stage =========
+
+  # ---- Render UI for placeholder 3 (defensive, fixes length-one text error) ----
   output$sa_ui_placeholder3 <- renderUI({
-    
     req(input$num_cars)
-    if (input$num_cars != "0") {
-      req(input$car1_type, input$car1_fuel, input$car1_mileage)
+    
+    # ---------- helper: safe extractor ----------
+    safe_val <- function(x, fallback = "") {
+      if (is.null(x)) return(fallback)
+      x_chr <- as.character(x)
+      if (length(x_chr) == 0) return(fallback)
+      x_chr[1]
     }
     
-    # CSS for styling
-    css_styles <- tags$style(HTML("
-    .combined-info-box { 
-      margin: 0 0 25px 0; padding: 18px; background-color: #f8f9fa; 
-      border-left: 5px solid #007bff; border-radius: 4px; 
+    # ---------- helper functions (trip-aware) ----------
+    calculate_vehicle_cost <- function(fuel_type, mileage_val, weekly_trips = 0) {
+      fuel_type <- safe_val(fuel_type, "Petrol")
+      mileage_val <- safe_val(mileage_val, "2,001-5,000")
+      
+      base_costs <- list("Petrol" = 150 * 1.25,
+                         "Diesel" = 160 * 1.25,
+                         "Fully Electric" = 80,
+                         "Plug-in Hybrid" = 120 * 1.15)
+      base <- if (!is.null(base_costs[[fuel_type]])) base_costs[[fuel_type]] else 150
+      
+      parking <- switch(mileage_val,
+                        "0-2,000" = 5, "2,001-5,000" = 10,
+                        "5,001 - 10,000" = 15, "10,001+" = 20, 10)
+      multiplier <- switch(mileage_val,
+                           "0-2,000" = 0.6, "2,001-5,000" = 1.0,
+                           "5,001 - 10,000" = 1.5, "10,001+" = 2.2, 1.0)
+      fixed_monthly <- round((base * multiplier) + (parking * 1.20), 0)
+      
+      monthly_trips <- as.numeric(ifelse(is.null(weekly_trips), 0, weekly_trips)) * 4.345
+      per_trip_vars <- list("Petrol" = 0.45, "Diesel" = 0.40, "Fully Electric" = 0.20, "Plug-in Hybrid" = 0.30)
+      per_trip <- if (!is.null(per_trip_vars[[fuel_type]])) per_trip_vars[[fuel_type]] else 0.40
+      variable_monthly <- round(per_trip * monthly_trips, 2)
+      
+      list(fixed = fixed_monthly, variable = variable_monthly, total = round(fixed_monthly + variable_monthly, 0))
     }
-    .scenario-section { margin-bottom: 15px; }
-    .summary-section h5 { margin-top: 12px; }
-    .slider-container { padding: 5px; }
-    .slider-container .form-group { margin: 0; }
+    
+    calculate_carlite_cost_numeric <- function(weekly_trips = NULL) {
+      avail_choice <- safe_val(input[["sa_carlite_availability"]], "pt_90_on_time")
+      mult_avail <- switch(avail_choice, "pt_90_on_time" = 0.95, "95_garage" = 1.0, "80_shared" = 1.15, "custom" = 1.0, 1.0)
+      access_choice <- safe_val(input[["sa_carlite_access"]], "10_min")
+      mult_access <- switch(access_choice, "at_home" = 1.0, "5_min" = 1.05, "10_min" = 1.10, 1.0)
+      pt_choice <- safe_val(input[["sa_carlite_ptpass"]], "no")
+      pt_cost <- if (pt_choice == "yes" && avail_choice == "pt_90_on_time") 50 else 0
+      
+      first_vehicle_cost <- tryCatch(calculate_vehicle_cost(safe_val(input$car1_fuel), safe_val(input$car1_mileage), 0)$fixed,
+                                     error = function(e) 100)
+      fixed_base <- round(first_vehicle_cost * 0.7 + 50)
+      fixed_monthly <- round(fixed_base * mult_avail * mult_access + pt_cost)
+      
+      weekly <- if (is.null(weekly_trips)) safe_val(input[["sa_carlite_trips"]], 0) else weekly_trips
+      monthly_trips <- as.numeric(ifelse(is.null(weekly) || identical(weekly, ""), 0, weekly)) * 4.345
+      per_trip_carlite <- 1.50
+      variable_monthly <- round(per_trip_carlite * monthly_trips, 2)
+      
+      list(fixed = fixed_monthly, variable = variable_monthly, total = round(fixed_monthly + variable_monthly, 0))
+    }
+    
+    calculate_carfree_cost_numeric <- function(weekly_trips = NULL) {
+      avail_choice <- safe_val(input[["sa_carfree_availability"]], "99_avail")
+      mult_avail <- switch(avail_choice, "99_avail" = 0.95, "90_avail" = 1.0, "75_avail" = 1.2, "custom" = 1.0, 1.0)
+      access_choice <- safe_val(input[["sa_carfree_access"]], "5_min")
+      mult_access <- switch(access_choice, "at_home" = 1.0, "5_min" = 1.05, "10_min" = 1.10, 1.0)
+      pt_choice <- safe_val(input[["sa_carfree_ptpass"]], "no")
+      pt_cost <- if (pt_choice == "yes" && avail_choice == "pt_90_on_time") 50 else 0
+      
+      carshare_base <- 80
+      fixed_monthly <- round(carshare_base * mult_avail * mult_access + pt_cost)
+      
+      weekly <- if (is.null(weekly_trips)) safe_val(input[["sa_carfree_trips"]], 0) else weekly_trips
+      monthly_trips <- as.numeric(ifelse(is.null(weekly) || identical(weekly, ""), 0, weekly)) * 4.345
+      per_trip_pt <- 2.20
+      variable_monthly <- round(per_trip_pt * monthly_trips, 2)
+      
+      list(fixed = fixed_monthly, variable = variable_monthly, total = round(fixed_monthly + variable_monthly, 0))
+    }
+    
+    # ---------- reactive outputs (trip-aware) ----------
+    local({
+      output[["sa_carlite_monthly_cost"]] <- renderText({
+        vals <- calculate_carlite_cost_numeric()
+        paste0("£", formatC(vals$total, digits = 0, format = "f"))
+      })
+      
+      output[["sa_carfree_monthly_cost"]] <- renderText({
+        vals <- calculate_carfree_cost_numeric()
+        paste0("£", formatC(vals$total, digits = 0, format = "f"))
+      })
+      
+      output[["trips_summary_val2"]] <- renderText({
+        num_vehicles <- switch(safe_val(input$num_cars, "0"), "0" = 0, "1" = 1, "2" = 2, "3" = 3, "4+" = 4, 0)
+        total_trips <- 0L
+        
+        if (num_vehicles == 0) {
+          # sum reported weekly trips across modes (sliders)
+          total_trips <- 0L
+          total_trips <- total_trips + as.integer(safe_val(input[["sa_0_trips_none"]], 0))
+          total_trips <- total_trips + as.integer(safe_val(input[["sa_0_trips_pt"]], 0))
+          total_trips <- total_trips + as.integer(safe_val(input[["sa_0_trips_carshare"]], 0))
+          paste0(total_trips, " trips")
+          
+        } else {
+          for (i in seq_len(num_vehicles)) {
+            t <- input[[paste0("sa_car", i, "_trips_keep")]]
+            if (!is.null(t) && length(t) >= 1) total_trips <- total_trips + as.integer(t[1])
+          }
+          if (!is.null(input[["sa_carlite_trips"]])) total_trips <- total_trips + as.integer(input[["sa_carlite_trips"]])
+          if (!is.null(input[["sa_carfree_trips"]])) total_trips <- total_trips + as.integer(input[["sa_carfree_trips"]])
+        }
+        
+        paste0(total_trips, " trips")
+      })
+      
+      output[["cost_summary_val2"]] <- renderText({
+        num_vehicles <- switch(safe_val(input$num_cars, "0"), "0" = 0, "1" = 1, "2" = 2, "3" = 3, "4+" = 4, 0)
+        total_cost <- 0
+        
+        if (num_vehicles == 0) {
+          choice <- safe_val(input[["sa_0_car_decision"]], "no_changes")
+          
+          # cost when they "increase alternatives" => sum of car-lite + car-free totals (as before)
+          if (choice == "increase_alts") {
+            total_cost <- calculate_carlite_cost_numeric(as.numeric(safe_val(input[["sa_0_trips_pt"]], 0)))$total +
+              calculate_carfree_cost_numeric(as.numeric(safe_val(input[["sa_0_trips_carshare"]], 0)))$total
+          } else if (choice == "get_car") {
+            # naive estimate of monthly cost of acquiring a small petrol car
+            # estimate weekly car trips as the maximum of current mode trips (simple heuristic)
+            est_weekly_trips <- max(as.numeric(safe_val(input[["sa_0_trips_none"]], 0)),
+                                    as.numeric(safe_val(input[["sa_0_trips_pt"]], 0)),
+                                    as.numeric(safe_val(input[["sa_0_trips_carshare"]], 0)),
+                                    1)
+            # use petrol + mid mileage as default; change if you prefer another baseline
+            vc <- calculate_vehicle_cost("Petrol", "2,001-5,000", est_weekly_trips)
+            total_cost <- vc$total
+          } else {
+            # no_changes: aggregate current alternatives' nominal cost (car-free assumed 0 ownership)
+            total_cost <- calculate_carlite_cost_numeric(as.numeric(safe_val(input[["sa_0_trips_pt"]], 0)))$total +
+              calculate_carfree_cost_numeric(as.numeric(safe_val(input[["sa_0_trips_carshare"]], 0)))$total
+            # If you prefer 'no_changes' to show zero, set total_cost <- 0 instead.
+          }
+          
+          paste0("£", formatC(total_cost, format = "f", big.mark = ",", digits = 0))
+        } else {
+          for (i in seq_len(num_vehicles)) {
+            ft <- safe_val(input[[paste0("car", i, "_fuel")]], "Petrol")
+            mi <- safe_val(input[[paste0("car", i, "_mileage")]], "2,001-5,000")
+            weekly_trips_i <- as.numeric(safe_val(input[[paste0("sa_car", i, "_trips_keep")]], 0))
+            vehicle_vals <- calculate_vehicle_cost(ft, mi, weekly_trips_i)
+            total_cost <- total_cost + vehicle_vals$total
+          }
+          total_cost <- total_cost + calculate_carlite_cost_numeric(as.numeric(safe_val(input[["sa_carlite_trips"]], 0)))$total
+          total_cost <- total_cost + calculate_carfree_cost_numeric(as.numeric(safe_val(input[["sa_carfree_trips"]], 0)))$total
+        }
+        
+        paste0("£", formatC(as.numeric(total_cost), format = "f", big.mark = ",", digits = 0))
+      })
+    })
+    
+    # ---------- CSS and scenario summary (unchanged structure) ----------
+    css_styles <- tags$style(HTML("
+    .combined-info-box { margin: 0 0 18px 0; padding: 14px; background-color: #f8f9fa;
+                         border-left: 5px solid #007bff; border-radius: 4px; }
+    .summary-pill { display: flex; justify-content: space-between; align-items: center;
+                    padding: 10px 12px; border-radius: 8px; margin-bottom: 8px;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .summary-pill .label { font-weight: 700; color: #495057; }
+    .summary-pill .value { font-size: 18px; font-weight: 800; }
+    .summary-note { font-size: 12px; color: #6c757d; text-align: center; margin-top: 6px; }
   "))
     
-    create_vehicle_adaptation_block <- function(car_number, vehicle_type, fuel_type, mileage_val) {
-      decision_id <- paste0("sa_car", car_number, "_decision")
-      
-      calculate_vehicle_cost <- function(fuel_type, mileage_bracket) {
-        base_costs <- list("Petrol"=150*1.25, "Diesel"=160*1.25, "Fully Electric"=80, "Plug-in Hybrid"=120*1.15)
-        parking <- switch(mileage_bracket, "0-2,000"=5, "2,001-5,000"=10, "5,001 - 10,000"=15, "10,001+"=20, 0)
-        multiplier <- switch(mileage_bracket, "0-2,000"=0.6, "2,001-5,000"=1.0, "5,001 - 10,000"=1.5, "10,001+"=2.2, 1)
-        return(round((base_costs[[fuel_type]] * multiplier) + (parking * 1.20), 0))
-      }
-      
-      current_cost <- calculate_vehicle_cost(fuel_type, mileage_val)
-      vehicle_desc <- paste0(tolower(fuel_type), " ", tolower(vehicle_type), " (", mileage_val, " miles/year)")
-      
-      # IDs for new inputs
-      avail_reduce_id <- paste0("sa_car", car_number, "_availability_reduce")
-      avail_carshare_id <- paste0("sa_car", car_number, "_availability_carshare")
-      access_reduce_id <- paste0("sa_car", car_number, "_access_reduce")
-      access_carshare_id <- paste0("sa_car", car_number, "_access_carshare")
-      pt_reduce_id <- paste0("sa_car", car_number, "_ptpass_reduce")
-      pt_carshare_id <- paste0("sa_car", car_number, "_ptpass_carshare")
-      monthly_out_reduce <- paste0("sa_car", car_number, "_monthly_reduce")
-      monthly_out_carshare <- paste0("sa_car", car_number, "_monthly_carshare")
-      
-      # create the dynamic outputs that update when the selectInputs change
-      local({
-        base_curr <- current_cost
-        a_r <- avail_reduce_id; a_c <- avail_carshare_id
-        acc_r <- access_reduce_id; acc_c <- access_carshare_id
-        pt_r <- pt_reduce_id; pt_c <- pt_carshare_id
-        out_r <- monthly_out_reduce; out_c <- monthly_out_carshare
-        
-        output[[out_r]] <- renderText({
-          # availability multipliers
-          a_r_choice <- input[[a_r]]
-          mult_avail_r <- if (is.null(a_r_choice)) 1.0 else switch(a_r_choice,
-                                                                   "pt_90_on_time"=0.95,
-                                                                   "95_garage"=1.0,
-                                                                   "80_shared"=1.15,
-                                                                   "custom"=1.0)
-          # access multipliers
-          acc_r_choice <- input[[acc_r]]
-          mult_acc_r <- if (is.null(acc_r_choice)) 1.0 else switch(acc_r_choice,
-                                                                   "at_home"=1.0,
-                                                                   "5_min"=1.05,
-                                                                   "10_min"=1.10,
-                                                                   1.0)
-          # PT pass: apply only if user chose yes AND availability indicates PT (pt_90_on_time)
-          pt_r_choice <- input[[pt_r]]
-          pt_cost_r <- 0
-          if (!is.null(pt_r_choice) && pt_r_choice == "yes" && !is.null(a_r_choice) && a_r_choice == "pt_90_on_time") {
-            pt_cost_r <- 50
-          }
-          
-          reduce_base <- round(base_curr * 0.7 + 50)
-          reduce_cost_final <- round(reduce_base * mult_avail_r * mult_acc_r + pt_cost_r)
-          
-          paste0("£", reduce_cost_final)
-        })
-        
-        output[[out_c]] <- renderText({
-          a_c_choice <- input[[a_c]]
-          mult_avail_c <- if (is.null(a_c_choice)) 1.0 else switch(a_c_choice,
-                                                                   "99_avail"=0.95,
-                                                                   "90_avail"=1.0,
-                                                                   "75_avail"=1.2,
-                                                                   "custom"=1.0)
-          acc_c_choice <- input[[acc_c]]
-          mult_acc_c <- if (is.null(acc_c_choice)) 1.0 else switch(acc_c_choice,
-                                                                   "at_home"=1.0,
-                                                                   "5_min"=1.05,
-                                                                   "10_min"=1.10,
-                                                                   1.0)
-          # PT pass: apply only if user chose yes AND availability indicates PT (unlikely for carshare but keep rule)
-          pt_c_choice <- input[[pt_c]]
-          pt_cost_c <- 0
-          if (!is.null(pt_c_choice) && pt_c_choice == "yes" && !is.null(a_c_choice) && a_c_choice == "pt_90_on_time") {
-            pt_cost_c <- 50
-          }
-          
-          carshare_base <- 80
-          carshare_cost_final <- round(carshare_base * mult_avail_c * mult_acc_c + pt_cost_c)
-          
-          paste0("£", carshare_cost_final)
-        })
-      })
-      
-      bsCollapse(
-        id = paste0("sa_collapse_", car_number),
-        open = if (car_number == 1) paste0("sa_panel_", car_number) else NULL,
-        bsCollapsePanel(
-          title = paste0("Vehicle ", car_number, ": ", vehicle_desc),
-          value = paste0("sa_panel_", car_number),
-          style = "primary",
-          wellPanel(
-            tags$table(
-              class = "table table-bordered",
-              style = "width: 100%; margin: 15px 0; border-collapse: separate; border-spacing: 0;",
-              tags$thead(
-                tags$tr(
-                  tags$th(style = "width: 15%; background: linear-gradient(135deg, #343a40 0%, #212529 100%); color: white; text-align: center; font-weight: bold;", "Attribute"),
-                  tags$th(style = "width: 21.25%; background: linear-gradient(135deg, #dc3545 0%, #bd2130 100%); color: white; text-align: center;", "Your current owned vehicle"),
-                  tags$th(style = "width: 21.25%; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; text-align: center;", "Car-lite"),
-                  tags$th(style = "width: 21.25%; background: linear-gradient(135deg, #ffc107 0%, #d39e00 100%); color: black; text-align: center;", "Car-free")
-                )
-              ),
-              tags$tbody(
-                # Access time row -> editable for the two sharing alternatives
-                tags$tr(
-                  tags$td(style = "background-color: #f8f9fa; font-weight: bold;", "Access Time"),
-                  tags$td(style = "text-align: center; background-color: #f8d7da;", "At home"),
-                  tags$td(style = "text-align: center; background-color: #cce7ff;",
-                          div(style = "padding:6px;",
-                              selectInput(
-                                inputId = access_reduce_id,
-                                label = NULL,
-                                choices = c("At home" = "at_home", "5 min walk" = "5_min", "10 min walk" = "10_min"),
-                                selected = "10_min",
-                                width = "100%"
-                              )
-                          )
-                  ),
-                  tags$td(style = "text-align: center; background-color: #fff3cd;",
-                          div(style = "padding:6px;",
-                              selectInput(
-                                inputId = access_carshare_id,
-                                label = NULL,
-                                choices = c("At home" = "at_home", "5 min walk" = "5_min", "10 min walk" = "10_min"),
-                                selected = "5_min",
-                                width = "100%"
-                              )
-                          )
-                  )
-                ),
-                # Availability row  <-- dropdowns for car-lite & car-free adjust cost
-                tags$tr(
-                  tags$td(style = "background-color: #f8f9fa; font-weight: bold;", "Availability"),
-                  tags$td(style = "text-align: center; background-color: #f8d7da;", "90% (10% garage)"),
-                  tags$td(style = "text-align: center; background-color: #cce7ff;",
-                          div(style = "padding:6px;",
-                              selectInput(
-                                inputId = avail_reduce_id,
-                                label = NULL,
-                                choices = c(
-                                  "PT: 90% on-time" = "pt_90_on_time",
-                                  "95% (5% garage)"   = "95_garage",
-                                  "80% (shared schedule)" = "80_shared",
-                                  "Custom (specify later)" = "custom"
-                                ),
-                                selected = "pt_90_on_time",
-                                width = "100%"
-                              )
-                          )
-                  ),
-                  tags$td(style = "text-align: center; background-color: #fff3cd;",
-                          div(style = "padding:6px;",
-                              selectInput(
-                                inputId = avail_carshare_id,
-                                label = NULL,
-                                choices = c(
-                                  "99% available" = "99_avail",
-                                  "90% available" = "90_avail",
-                                  "75% available" = "75_avail",
-                                  "Custom (specify later)" = "custom"
-                                ),
-                                selected = "99_avail",
-                                width = "100%"
-                              )
-                          )
-                  )
-                ),
-                # PT pass row (yes/no) that updates costs only when availability indicates PT
-                tags$tr(
-                  tags$td(style = "background-color: #f8f9fa; font-weight: bold;", "PT pass"),
-                  tags$td(style = "text-align: center; background-color: #f8d7da;", "—"),
-                  tags$td(style = "text-align: center; background-color: #cce7ff;",
-                          div(style = "padding:6px;",
-                              selectInput(inputId = pt_reduce_id, label = NULL,
-                                          choices = c("No" = "no", "Yes" = "yes"), selected = "no", width = "100%")
-                          )
-                  ),
-                  tags$td(style = "text-align: center; background-color: #fff3cd;",
-                          div(style = "padding:6px;",
-                              selectInput(inputId = pt_carshare_id, label = NULL,
-                                          choices = c("No" = "no", "Yes" = "yes"), selected = "no", width = "100%")
-                          )
-                  )
-                ),
-                # Cost row -> separate outputs for each column (owned | car-lite | car-free)
-                tags$tr(
-                  tags$td(style = "background-color: #f8f9fa; font-weight: bold;", "Monthly Cost"),
-                  tags$td(style = "text-align: center; background-color: #f8d7da; font-weight: bold; vertical-align: middle;", paste0("£", current_cost)),
-                  tags$td(style = "text-align: center; background-color: #cce7ff; font-weight: bold; vertical-align: middle;",
-                          textOutput(monthly_out_reduce, inline = TRUE)
-                  ),
-                  tags$td(style = "text-align: center; background-color: #fff3cd; font-weight: bold; vertical-align: middle;",
-                          textOutput(monthly_out_carshare, inline = TRUE)
-                  )
-                ),
-                # Usage row with sliders
-                tags$tr(
-                  tags$td(style = "background-color: #f8f9fa; font-weight: bold; vertical-align: middle;", "Weekly Trips"),
-                  tags$td(style = "text-align: center; background-color: #f8d7da; padding: 10px;", 
-                          div(class = "slider-container",
-                              sliderInput(paste0("sa_car", car_number, "_trips_keep"), NULL, min = 0, max = 21, value = 10, step = 1))),
-                  tags$td(style = "text-align: center; background-color: #cce7ff; padding: 10px;", 
-                          div(class = "slider-container",
-                              sliderInput(paste0("sa_car", car_number, "_trips_reduce"), NULL, min = 0, max = 21, value = 5, step = 1))),
-                  tags$td(style = "text-align: center; background-color: #fff3cd; padding: 10px;", 
-                          div(class = "slider-container",
-                              sliderInput(paste0("sa_car", car_number, "_trips_carshare"), NULL, min = 0, max = 21, value = 2, step = 1)))
-                )
-              )
-            )
-          )
-        )
-      )
+    # small helper to safely build vehicle header text (guaranteed length-1)
+    build_vehicle_header <- function(i) {
+      fuel <- safe_val(input[[paste0("car", i, "_fuel")]])
+      type <- safe_val(input[[paste0("car", i, "_type")]])
+      mileage <- safe_val(input[[paste0("car", i, "_mileage")]], "")
+      desc <- paste0(trimws(paste(fuel, type)), if (nzchar(mileage)) paste0(" (", mileage, ")") else "")
+      paste0("Vehicle ", i, ": ", desc)
     }
     
-    create_zero_car_adaptation_block <- function() {
-      # IDs for zero-car dynamic inputs & outputs
-      avail_0_carshare_id <- "sa_0_availability_carshare"
-      access_0_pt_id <- "sa_0_access_pt"
-      access_0_carshare_id <- "sa_0_access_carshare"
-      pt_0_pt_id <- "sa_0_ptpass_pt"
-      pt_0_carshare_id <- "sa_0_ptpass_carshare"
-      monthly_0_out_pt <- "sa_0_monthly_pt"
-      monthly_0_out_carshare <- "sa_0_monthly_carshare"
-      
-      local({
-        a0c <- avail_0_carshare_id
-        acc0pt <- access_0_pt_id; acc0c <- access_0_carshare_id
-        pt0pt <- pt_0_pt_id; pt0c <- pt_0_carshare_id
-        out_pt <- monthly_0_out_pt; out_c <- monthly_0_out_carshare
-        
-        output[[out_pt]] <- renderText({
-          # pt column (Add PT)
-          acc_pt_choice <- input[[acc0pt]]
-          mult_acc_pt <- if (is.null(acc_pt_choice)) 1.0 else switch(acc_pt_choice,
-                                                                     "at_home"=1.0,
-                                                                     "5_min"=1.05,
-                                                                     "10_min"=1.10,
-                                                                     1.0)
-          pt_pt_choice <- input[[pt0pt]]
-          pt_cost_pt <- if (!is.null(pt_pt_choice) && pt_pt_choice == "yes") 50 else 0
-          
-          pt_base <- 50
-          pt_final <- round(pt_base * mult_acc_pt + pt_cost_pt)
-          paste0("£", pt_final)
-        })
-        
-        output[[out_c]] <- renderText({
-          # carshare column (Add Car-sharing)
-          a_c_choice <- input[[a0c]]
-          mult_avail_c <- if (is.null(a_c_choice)) 1.0 else switch(a_c_choice,
-                                                                   "99_avail"=0.95,
-                                                                   "90_avail"=1.0,
-                                                                   "75_avail"=1.2,
-                                                                   "custom"=1.0)
-          acc_c_choice <- input[[acc0c]]
-          mult_acc_c <- if (is.null(acc_c_choice)) 1.0 else switch(acc_c_choice,
-                                                                   "at_home"=1.0,
-                                                                   "5_min"=1.05,
-                                                                   "10_min"=1.10,
-                                                                   1.0)
-          pt_c_choice <- input[[pt0c]]
-          pt_cost_c <- 0
-          # only apply PT cost to this column if availability indicates PT (consistent rule)
-          if (!is.null(pt_c_choice) && pt_c_choice == "yes" && !is.null(a_c_choice) && a_c_choice == "pt_90_on_time") {
-            pt_cost_c <- 50
-          }
-          
-          carshare_base <- 25
-          carshare_final <- round(carshare_base * mult_avail_c * mult_acc_c + pt_cost_c)
-          paste0("£", carshare_final)
-        })
-      })
-      
-      bsCollapse(
-        id = "sa_collapse_0",
-        open = "sa_panel_0",
-        bsCollapsePanel(
-          title = "Household Transport Decisions (Currently Car-free)",
-          value = "sa_panel_0",
-          style = "info",
-          wellPanel(
-            tags$table(
-              class = "table table-bordered",
-              style = "width: 100%; margin: 15px 0; border-collapse: separate; border-spacing: 0;",
-              tags$thead(
-                tags$tr(
-                  tags$th(style = "width: 15%; background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); color: white; text-align: center; font-weight: bold;", "Attribute"),
-                  tags$th(style = "width: 28.33%; background: linear-gradient(135deg, #6c757d 0%, #495057 100%); color: white; text-align: center;", "No Changes"),
-                  tags$th(style = "width: 28.33%; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; text-align: center;", "Add PT Pass"),
-                  tags$th(style = "width: 28.33%; background: linear-gradient(135deg, #ffc107 0%, #d39e00 100%); color: black; text-align: center;", "Add Car-sharing")
-                )
-              ),
-              tags$tbody(
-                tags$tr(
-                  tags$td(style = "background-color: #f8f9fa; font-weight: bold;", "Access Time"),
-                  tags$td(style = "text-align: center; background-color: #e2e3e5;", "Walking/cycling"),
-                  tags$td(style = "text-align: center; background-color: #cce7ff;",
-                          div(style = "padding:6px;",
-                              selectInput(inputId = access_0_pt_id, label = NULL,
-                                          choices = c("At home" = "at_home", "5 min walk" = "5_min", "10 min walk" = "10_min"),
-                                          selected = "10_min", width = "100%")
-                          )
-                  ),
-                  tags$td(style = "text-align: center; background-color: #fff3cd;",
-                          div(style = "padding:6px;",
-                              selectInput(inputId = access_0_carshare_id, label = NULL,
-                                          choices = c("At home" = "at_home", "5 min walk" = "5_min", "10 min walk" = "10_min"),
-                                          selected = "5_min", width = "100%")
-                          )
-                  )
-                ),
-                tags$tr(
-                  tags$td(style = "background-color: #f8f9fa; font-weight: bold;", "Availability"),
-                  tags$td(style = "text-align: center; background-color: #e2e3e5;", "100%"),
-                  tags$td(style = "text-align: center; background-color: #cce7ff;", textOutput(monthly_0_out_pt, inline = TRUE)), # placeholder to keep column alignment
-                  tags$td(style = "text-align: center; background-color: #fff3cd;",
-                          div(style = "padding:6px;",
-                              selectInput(
-                                inputId = avail_0_carshare_id,
-                                label = NULL,
-                                choices = c(
-                                  "99% available" = "99_avail",
-                                  "90% available" = "90_avail",
-                                  "75% available" = "75_avail",
-                                  "Custom (specify later)" = "custom"
-                                ),
-                                selected = "99_avail",
-                                width = "100%"
-                              )
-                          )
-                  )
-                ),
-                # PT pass row for zero-car module
-                tags$tr(
-                  tags$td(style = "background-color: #f8f9fa; font-weight: bold;", "PT pass"),
-                  tags$td(style = "text-align: center; background-color: #e2e3e5;", "—"),
-                  tags$td(style = "text-align: center; background-color: #cce7ff;",
-                          div(style = "padding:6px;",
-                              selectInput(inputId = pt_0_pt_id, label = NULL,
-                                          choices = c("No" = "no", "Yes" = "yes"), selected = "no", width = "100%")
-                          )
-                  ),
-                  tags$td(style = "text-align: center; background: #fff3cd;",
-                          div(style = "padding:6px;",
-                              selectInput(inputId = pt_0_carshare_id, label = NULL,
-                                          choices = c("No" = "no", "Yes" = "yes"), selected = "no", width = "100%")
-                          )
-                  )
-                ),
-                tags$tr(
-                  tags$td(style = "background-color: #f8f9fa; font-weight: bold;", "Monthly Cost"),
-                  tags$td(style = "text-align: center; background-color: #e2e3e5; font-weight: bold;", "£0"),
-                  tags$td(style = "text-align: center; background-color: #cce7ff; font-weight: bold;", textOutput(monthly_0_out_pt, inline = TRUE)),
-                  tags$td(style = "text-align: center; background-color: #fff3cd; font-weight: bold;", textOutput(monthly_0_out_carshare, inline = TRUE))
-                ),
-                tags$tr(
-                  tags$td(style = "background-color: #f8f9fa; font-weight: bold; vertical-align: middle;", "Weekly Trips"),
-                  tags$td(style = "text-align: center; background-color: #e2e3e5; padding: 10px;", 
-                          div(class = "slider-container",
-                              sliderInput("sa_0_trips_none", NULL, min = 0, max = 21, value = 3, step = 1))),
-                  tags$td(style = "text-align: center; background-color: #cce7ff; padding: 10px;", 
-                          div(class = "slider-container",
-                              sliderInput("sa_0_trips_pt", NULL, min = 0, max = 21, value = 8, step = 1))),
-                  tags$td(style = "text-align: center; background-color: #fff3cd; padding: 10px;", 
-                          div(class = "slider-container",
-                              sliderInput("sa_0_trips_carshare", NULL, min = 0, max = 21, value = 5, step = 1)))
-                ),
-                tags$tr(
-                  tags$td(style = "background-color: #f8f9fa; font-weight: bold;", "Your Choice"),
-                  tags$td(style = "text-align: center; background-color: #f0f1f2;", 
-                          radioButtons("sa_0_car_decision", NULL, choices = c("No change" = "no_changes"), 
-                                       selected = character(0))),
-                  tags$td(style = "text-align: center; background-color: #e6f3ff;", 
-                          radioButtons("sa_0_car_decision", NULL, choices = c("Add PT" = "add_pt"), 
-                                       selected = character(0))),
-                  tags$td(style = "text-align: center; background-color: #fff9e6;", 
-                          radioButtons("sa_0_car_decision", NULL, choices = c("Add sharing" = "add_carshare"), 
-                                       selected = character(0)))
-                )
-              )
-            )
-          )
-        )
-      )
-    }
-    
-    # scenario box
+    # scenario/context box (unchanged)
     scenario_context_box <- div(
       class = "combined-info-box",
       h4("In this scenario, how would your household adapt travel over the next 3 years?"),
-      
       fluidRow(
         column(width = 6,
                div(class = "scenario-section",
                    h5("Leeds 2030 Scenario:"),
-                   tags$table(class="table table-sm table-borderless", style="margin-bottom: 0;",
+                   tags$table(class = "table table-sm table-borderless", style = "margin-bottom: 0;",
                               tags$tbody(
-                                tags$tr(tags$td(icon("bus"), strong("Mobility network:")), 
-                                        tags$td("Bus/tram/train in Leeds runs 24/7 all week")),
-                                tags$tr(tags$td(icon("check-circle"), strong("Car club:")), 
-                                        tags$td("A car-club is organised in your neighbourhood."))
+                                tags$tr(tags$td(icon("bus"), strong("Mobility network:")), tags$td("Bus/tram/train in Leeds runs 24/7 all week")),
+                                tags$tr(tags$td(icon("check-circle"), strong("Car club:")), tags$td("A car-club is organised in your neighbourhood."))
                               )
                    )
                )
@@ -977,36 +747,325 @@ function(input, output, session) {
         column(width = 6,
                div(class = "summary-section",
                    h5("Your Travel Summary"),
-                   div("Total Weekly Trips:", tags$span(id="trips_summary_val2", "0 trips")),
-                   div(style="margin-top: 8px; font-weight: bold;", "Est. Monthly Cost:", tags$span(id="cost_summary_val2", "£0"))
+                   div(class = "summary-pill", style = "background: linear-gradient(90deg,#e9f7ef,#fff); border: 1px solid #d4edda;",
+                       div(class = "label", "Total Weekly Trips"),
+                       div(class = "value", textOutput("trips_summary_val2", inline = TRUE))
+                   ),
+                   div(class = "summary-pill", style = "background: linear-gradient(90deg,#fff4e6,#fff); border: 1px solid #ffeeba;",
+                       div(class = "label", "Est. Monthly Cost"),
+                       div(class = "value", textOutput("cost_summary_val2", inline = TRUE))
+                   ),
+                   div(class = "summary-note",
+                       tags$strong("Live update:"), " changing sliders or choices immediately updates trips and cost."
+                   )
                )
         )
       )
     )
     
-    ui_elements <- list(css_styles, scenario_context_box)
-    
-    if (input$num_cars == "0") {
-      ui_elements <- append(ui_elements, list(create_zero_car_adaptation_block()))
-    } else {
-      num_vehicles <- switch(input$num_cars, "1"=1, "2"=2, "3"=3, "4+"=4)
-      for (i in 1:num_vehicles) {
-        if (!is.null(input[[paste0("car", i, "_type")]])) {
-          ui_elements <- append(ui_elements, list(create_vehicle_adaptation_block(
-            i, input[[paste0("car", i, "_type")]], 
-            input[[paste0("car", i, "_fuel")]], 
-            input[[paste0("car", i, "_mileage")]])))
-        }
-      }
+    # create tables (zero-car or multi-vehicle) similar to previous block
+    create_multi_vehicle_table <- function() {
+      num_vehicles <- switch(safe_val(input$num_cars, "1"), "1" = 1, "2" = 2, "3" = 3, "4+" = 4, 1)
+      attr_width <- 12
+      vehicle_width <- round((88 - attr_width) / (num_vehicles + 2), 2)
+      
+      vehicle_headers <- lapply(seq_len(num_vehicles), function(i) {
+        tags$th(style = paste0("width: ", vehicle_width, "%; background: linear-gradient(135deg, #dc3545 0%, #bd2130 100%); color: white; text-align: center;"),
+                build_vehicle_header(i))
+      })
+      
+      vehicle_access_cells <- lapply(seq_len(num_vehicles), function(i) {
+        tags$td(style = "text-align: center; background-color: #f8d7da;", "At home")
+      })
+      vehicle_avail_cells <- lapply(seq_len(num_vehicles), function(i) {
+        tags$td(style = "text-align: center; background-color: #f8d7da;", "90% (10% garage)")
+      })
+      vehicle_pt_cells <- lapply(seq_len(num_vehicles), function(i) {
+        tags$td(style = "text-align: center; background-color: #f8d7da;", "—")
+      })
+      vehicle_cost_cells <- lapply(seq_len(num_vehicles), function(i) {
+        # show fixed (ownership) cost; safe numeric conversion
+        val <- calculate_vehicle_cost(safe_val(input[[paste0("car", i, "_fuel")]]),
+                                      safe_val(input[[paste0("car", i, "_mileage")]]), 0)$fixed
+        tags$td(style = "text-align: center; background-color: #f8d7da; font-weight: bold;", paste0("£", as.integer(val)))
+      })
+      vehicle_trip_cells <- lapply(seq_len(num_vehicles), function(i) {
+        tags$td(style = "text-align: center; background-color: #f8d7da; padding: 10px;",
+                div(class = "slider-container",
+                    sliderInput(paste0("sa_car", i, "_trips_keep"), NULL, min = 0, max = 21, value = 10, step = 1)))
+      })
+      
+      wellPanel(
+        tags$table(
+          class = "table table-bordered",
+          style = "width: 100%; margin: 15px 0; border-collapse: separate; border-spacing: 0;",
+          tags$thead(
+            tags$tr(
+              tags$th(style = paste0("width: ", attr_width, "%; background: linear-gradient(135deg, #343a40 0%, #212529 100%); color: white; text-align: center; font-weight: bold;"), "Attribute"),
+              do.call(tagList, vehicle_headers),
+              tags$th(style = paste0("width: ", vehicle_width, "%; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; text-align: center;"), "Car-lite"),
+              tags$th(style = paste0("width: ", vehicle_width, "%; background: linear-gradient(135deg, #ffc107 0%, #d39e00 100%); color: black; text-align: center;"), "Car-free")
+            )
+          ),
+          tags$tbody(
+            tags$tr(
+              tags$td(style = "background-color: #f8f9fa; font-weight: bold;", "Access Time"),
+              do.call(tagList, vehicle_access_cells),
+              tags$td(style = "text-align: center; background-color: #cce7ff;", div(style = "padding:6px;", selectInput("sa_carlite_access", NULL,
+                                                                                                                        choices = c("At home" = "at_home", "5 min walk" = "5_min", "10 min walk" = "10_min"),
+                                                                                                                        selected = "10_min", width = "100%"))),
+              tags$td(style = "text-align: center; background-color: #fff3cd;", div(style = "padding:6px;", selectInput("sa_carfree_access", NULL,
+                                                                                                                        choices = c("At home" = "at_home", "5 min walk" = "5_min", "10 min walk" = "10_min"),
+                                                                                                                        selected = "5_min", width = "100%")))
+              
+            ),
+            tags$tr(
+              tags$td(style = "background-color: #f8f9fa; font-weight: bold;", "Availability"),
+              do.call(tagList, vehicle_avail_cells),
+              tags$td(style = "text-align: center; background-color: #cce7ff;", div(style = "padding:6px;", selectInput("sa_carlite_availability", NULL,
+                                                                                                                        choices = c("PT: 90% on-time" = "pt_90_on_time",
+                                                                                                                                    "95% (5% garage)" = "95_garage",
+                                                                                                                                    "80% (shared schedule)" = "80_shared",
+                                                                                                                                    "Custom (specify later)" = "custom"),
+                                                                                                                        selected = "pt_90_on_time", width = "100%"))),
+              tags$td(style = "text-align: center; background-color: #fff3cd;", div(style = "padding:6px;", selectInput("sa_carfree_availability", NULL,
+                                                                                                                        choices = c("99% available" = "99_avail",
+                                                                                                                                    "90% available" = "90_avail",
+                                                                                                                                    "75% available" = "75_avail",
+                                                                                                                                    "Custom (specify later)" = "custom"),
+                                                                                                                        selected = "99_avail", width = "100%")))
+              
+            ),
+            tags$tr(
+              tags$td(style = "background-color: #f8f9fa; font-weight: bold;", "PT pass"),
+              do.call(tagList, vehicle_pt_cells),
+              tags$td(style = "text-align: center; background-color: #cce7ff;", div(style = "padding:6px;", selectInput("sa_carlite_ptpass", NULL,
+                                                                                                                        choices = c("No" = "no", "Yes" = "yes"),
+                                                                                                                        selected = "no", width = "100%"))),
+              tags$td(style = "text-align: center; background-color: #fff3cd;", div(style = "padding:6px;", selectInput("sa_carfree_ptpass", NULL,
+                                                                                                                        choices = c("No" = "no", "Yes" = "yes"),
+                                                                                                                        selected = "no", width = "100%")))
+              
+            ),
+            tags$tr(
+              tags$td(style = "background-color: #f8f9fa; font-weight: bold;", "Monthly Cost"),
+              do.call(tagList, vehicle_cost_cells),
+              tags$td(style = "text-align: center; background-color: #cce7ff; font-weight: bold; vertical-align: middle;", textOutput("sa_carlite_monthly_cost", inline = TRUE)),
+              tags$td(style = "text-align: center; background-color: #fff3cd; font-weight: bold; vertical-align: middle;", textOutput("sa_carfree_monthly_cost", inline = TRUE))
+            ),
+            tags$tr(
+              tags$td(style = "background-color: #f8f9fa; font-weight: bold; vertical-align: middle;", "Weekly Trips"),
+              do.call(tagList, vehicle_trip_cells),
+              tags$td(style = "text-align: center; background-color: #cce7ff; padding: 10px;", div(class = "slider-container", sliderInput("sa_carlite_trips", NULL, min = 0, max = 21, value = 5, step = 1))),
+              tags$td(style = "text-align: center; background-color: #fff3cd; padding: 10px;", div(class = "slider-container", sliderInput("sa_carfree_trips", NULL, min = 0, max = 21, value = 2, step = 1)))
+            )
+          )
+        )
+      )
     }
     
-    ui_elements <- append(ui_elements, list(
-      hr(),
-      actionButton("to_sa_button4", "Continue", class = "btn-success btn-lg")
-    ))
+    create_zero_car_adaptation_block <- function() {
+      local({
+        safe_val_local <- function(x, fallback = "") {
+          if (is.null(x)) return(fallback)
+          x_chr <- as.character(x)
+          if (length(x_chr) == 0) return(fallback)
+          x_chr[1]
+        }
+        
+        # helpers (reuse logic you already have)
+        get_weekly_trips <- function(mode) {
+          sa_id <- switch(mode,
+                          "none" = "sa_0_trips_none",
+                          "pt" = "sa_0_trips_pt",
+                          "carshare" = "sa_0_trips_carshare")
+          defaults <- list(none = 3, pt = 8, carshare = 2)
+          if (!is.null(input[[sa_id]])) return(as.numeric(safe_val_local(input[[sa_id]], defaults[[mode]])))
+          # fallback: guess from simple commute indicator if present (car0_* inputs)
+          commute <- safe_val_local(input[["car0_Commute"]], "")
+          if (mode == "none" && commute == "Active travel (walking / cycling)") return(6)
+          if (mode == "pt"   && commute == "Public transport") return(12)
+          if (mode == "carshare" && commute == "Car-sharing") return(4)
+          return(defaults[[mode]])
+        }
+        
+        get_pt_access <- function() {
+          if (!is.null(input[["sa_0_access_pt"]])) return(safe_val_local(input[["sa_0_access_pt"]]))
+          commute <- safe_val_local(input[["car0_Commute"]], "")
+          if (commute == "Public transport") return("5_min")
+          return("10_min")
+        }
+        
+        get_carshare_access <- function() {
+          if (!is.null(input[["sa_0_access_carshare"]])) return(safe_val_local(input[["sa_0_access_carshare"]]))
+          near <- safe_val_local(input[["car0_CarClubNear"]], "")
+          if (near == "Yes") return("5_min")
+          return("10_min")
+        }
+        
+        get_carshare_availability <- function() {
+          if (!is.null(input[["sa_0_availability_carshare"]])) return(safe_val_local(input[["sa_0_availability_carshare"]]))
+          near <- safe_val_local(input[["car0_CarClubNear"]], "")
+          if (near == "Yes") return("99_avail")
+          return("none")
+        }
+        
+        get_pt_pass_flag <- function() {
+          if (!is.null(input[["sa_0_ptpass_pt"]])) return(safe_val_local(input[["sa_0_ptpass_pt"]]))
+          pay <- safe_val_local(input[["car0_PayForPT"]], "")
+          if (grepl("Weekly|Monthly", pay, ignore.case = TRUE)) return("yes")
+          return("no")
+        }
+        
+        get_carclub_member_flag <- function() {
+          if (!is.null(input[["sa_0_ptpass_carshare"]])) return(safe_val_local(input[["sa_0_ptpass_carshare"]]))
+          member <- safe_val_local(input[["car0_CarClubMember"]], "")
+          if (member == "Yes") return("yes")
+          return("no")
+        }
+        
+        # monthly cost outputs (use your existing helpers if present)
+        output[["sa_0_monthly_pt"]] <- renderText({
+          vals <- NULL
+          weekly_pt <- get_weekly_trips("pt")
+          if (exists("calculate_carlite_cost_numeric", where = globalenv())) {
+            vals <- tryCatch(calculate_carlite_cost_numeric(weekly_pt), error = function(e) NULL)
+          }
+          if (!is.null(vals) && is.list(vals)) {
+            paste0("£", formatC(vals$total, format = "f", digits = 0))
+          } else {
+            # fallback
+            acc <- get_pt_access()
+            mult_acc <- switch(acc, "at_home" = 1.0, "5_min" = 1.05, "10_min" = 1.10, 1.0)
+            pt_cost_pt <- if (get_pt_pass_flag() == "yes") 50 else 0
+            paste0("£", round(50 * mult_acc + pt_cost_pt))
+          }
+        })
+        
+        output[["sa_0_monthly_carshare"]] <- renderText({
+          weekly_cs <- get_weekly_trips("carshare")
+          vals <- NULL
+          if (exists("calculate_carfree_cost_numeric", where = globalenv())) {
+            vals <- tryCatch(calculate_carfree_cost_numeric(weekly_cs), error = function(e) NULL)
+          }
+          member_flag <- get_carclub_member_flag()
+          member_discount <- if (member_flag == "yes") 0.8 else 1.0
+          if (!is.null(vals) && is.list(vals)) {
+            total <- round(vals$total * member_discount, 0)
+            paste0("£", formatC(total, format = "f", digits = 0))
+          } else {
+            carshare_base <- 25
+            acc <- get_carshare_access()
+            mult_acc <- switch(acc, "at_home" = 1.0, "5_min" = 1.05, "10_min" = 1.10, 1.0)
+            avail <- get_carshare_availability()
+            mult_avail <- switch(avail, "99_avail" = 0.95, "90_avail" = 1.0, "75_avail" = 1.2, "none" = 2.0, 1.0)
+            paste0("£", round(carshare_base * mult_avail * mult_acc * member_discount))
+          }
+        })
+        
+        # dynamic labels for the radio (keep values stable)
+        pt_has_pass  <- (get_pt_pass_flag() == "yes")
+        cs_member    <- (get_carclub_member_flag() == "yes")
+        pt_label     <- if (pt_has_pass) "Increase PT use" else "Add PT"
+        cs_label     <- if (cs_member) "Use car-sharing more" else "Join car-sharing"
+        
+        # UI: full-width table mirroring multi-vehicle style but with 3 mode columns
+        wellPanel(
+          tags$table(
+            class = "table table-bordered",
+            style = "width: 100%; margin: 15px 0; border-collapse: separate; border-spacing: 0;",
+            tags$thead(
+              tags$tr(
+                tags$th(style = "width: 15%; background: linear-gradient(135deg, #343a40 0%, #212529 100%); color: white; text-align: center; font-weight: bold;", "Attribute"),
+                tags$th(style = "width: 28.33%; background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%); color: white; text-align: center;", "Active travel (walk / cycle)"),
+                tags$th(style = "width: 28.33%; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; text-align: center;", "Public transport"),
+                tags$th(style = "width: 28.33%; background: linear-gradient(135deg, #ffc107 0%, #d39e00 100%); color: black; text-align: center;", "Car-sharing / taxis")
+              )
+            ),
+            tags$tbody(
+              tags$tr(
+                tags$td(style = "background-color: #f8f9fa; font-weight: bold;", "Access Time"),
+                tags$td(style = "text-align: center; background-color: #e9f7ef;", "At home / short walk"),
+                tags$td(style = "text-align: center; background-color: #cce7ff;", div(style = "padding:6px;", 
+                                                                                      if (!is.null(input[["sa_0_access_pt"]])) selectInput("sa_0_access_pt", NULL,
+                                                                                                                                           choices = c("At home" = "at_home", "5 min walk" = "5_min", "10 min walk" = "10_min"),
+                                                                                                                                           selected = input[["sa_0_access_pt"]], width = "100%") else
+                                                                                                                                             tags$div(get_pt_access())
+                )),
+                tags$td(style = "text-align: center; background-color: #fff3cd;", div(style = "padding:6px;",
+                                                                                      if (!is.null(input[["sa_0_access_carshare"]])) selectInput("sa_0_access_carshare", NULL,
+                                                                                                                                                 choices = c("At home" = "at_home", "5 min walk" = "5_min", "10 min walk" = "10_min"),
+                                                                                                                                                 selected = input[["sa_0_access_carshare"]], width = "100%") else
+                                                                                                                                                   tags$div(get_carshare_access())
+                ))
+              ),
+              tags$tr(
+                tags$td(style = "background-color: #f8f9fa; font-weight: bold;", "Availability"),
+                tags$td(style = "text-align: center; background-color: #e9f7ef;", "High (local routes)"),
+                tags$td(style = "text-align: center; background-color: #cce7ff;", "PT: 90% on-time"),
+                tags$td(style = "text-align: center; background-color: #fff3cd;", div(style = "padding:6px;",
+                                                                                      if (!is.null(input[["sa_0_availability_carshare"]])) selectInput("sa_0_availability_carshare", NULL,
+                                                                                                                                                       choices = c("99% available" = "99_avail", "90% available" = "90_avail", "75% available" = "75_avail", "Custom (specify later)" = "custom"),
+                                                                                                                                                       selected = input[["sa_0_availability_carshare"]], width = "100%") else
+                                                                                                                                                         tags$div(get_carshare_availability())
+                ))
+              ),
+              tags$tr(
+                tags$td(style = "background-color: #f8f9fa; font-weight: bold;", "Season pass / membership"),
+                tags$td(style = "text-align: center; background-color: #e9f7ef;", "—"),
+                tags$td(style = "text-align: center; background-color: #cce7ff;", div(style = "padding:6px;", 
+                                                                                      if (!is.null(input[["sa_0_ptpass_pt"]])) selectInput("sa_0_ptpass_pt", NULL, choices = c("No" = "no", "Yes" = "yes"), selected = input[["sa_0_ptpass_pt"]], width = "100%") else
+                                                                                        tags$div(get_pt_pass_flag())
+                )),
+                tags$td(style = "text-align: center; background: #fff3cd;", div(style = "padding:6px;",
+                                                                                if (!is.null(input[["sa_0_ptpass_carshare"]])) selectInput("sa_0_ptpass_carshare", NULL, choices = c("No" = "no", "Yes" = "yes"), selected = input[["sa_0_ptpass_carshare"]], width = "100%") else
+                                                                                  tags$div(get_carclub_member_flag())
+                ))
+              ),
+              tags$tr(
+                tags$td(style = "background-color: #f8f9fa; font-weight: bold;", "Estimated Monthly Cost"),
+                tags$td(style = "text-align: center; background-color: #e9f7ef; font-weight: bold;", "£0"),
+                tags$td(style = "text-align: center; background-color: #cce7ff; font-weight: bold;", textOutput("sa_0_monthly_pt", inline = TRUE)),
+                tags$td(style = "text-align: center; background-color: #fff3cd; font-weight: bold;", textOutput("sa_0_monthly_carshare", inline = TRUE))
+              ),
+              tags$tr(
+                tags$td(style = "background-color: #f8f9fa; font-weight: bold; vertical-align: middle;", "Weekly Trips"),
+                tags$td(style = "text-align: center; background-color: #e9f7ef; padding: 10px;", div(class = "slider-container", sliderInput("sa_0_trips_none", NULL, min = 0, max = 40, value = get_weekly_trips("none"), step = 1))),
+                tags$td(style = "text-align: center; background-color: #cce7ff; padding: 10px;", div(class = "slider-container", sliderInput("sa_0_trips_pt", NULL, min = 0, max = 40, value = get_weekly_trips("pt"), step = 1))),
+                tags$td(style = "text-align: center; background-color: #fff3cd; padding: 10px;", div(class = "slider-container", sliderInput("sa_0_trips_carshare", NULL, min = 0, max = 40, value = get_weekly_trips("carshare"), step = 1)))
+              ),
+              tags$tr(
+                tags$td(style = "background-color: #f8f9fa; font-weight: bold;", "Your Choice"),
+                tags$td(colspan = 3, style = "text-align: center; background-color: #f0f1f2;",
+                        # values: keep simple and explicit
+                        radioButtons("sa_0_car_decision", NULL,
+                                     choices = c("No change" = "no_changes", "Get a car" = "get_car", "Increase use of alternatives" = "increase_alts"),
+                                     selected = if (!is.null(input[["num_cars_intend"]]) && input[["num_cars_intend"]] == "Add 1 vehicle") "get_car" else character(0),
+                                     inline = TRUE))
+              )
+            )
+          )
+        ) # end wellPanel
+      })
+    }
+    
+  
+  
+    
+    # assemble UI
+    ui_elements <- list(css_styles, scenario_context_box)
+    
+    if (safe_val(input$num_cars, "0") == "0") {
+      ui_elements <- append(ui_elements, list(create_zero_car_adaptation_block()))
+    } else {
+      ui_elements <- append(ui_elements, list(create_multi_vehicle_table()))
+    }
+    
+    ui_elements <- append(ui_elements, list(hr(), actionButton("to_sa_button4", "Continue", class = "btn-success btn-lg")))
     
     do.call(tagList, ui_elements)
   })
+  
   
   
   # ========= Version 3: Menu by sliders =========

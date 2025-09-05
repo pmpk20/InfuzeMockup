@@ -346,7 +346,16 @@ fluidPage(
             label = "1. How many vehicles (cars, vans, motorbikes) does your household currently have?",
             choices = c("0", "1", "2", "3", "4+"),
             selected = "1"
+          ),
+          
+          selectInput(
+            "num_cars_intend", 
+            width = "50%",
+            label = "2. Do you intend to acquire/remove a new household vehicle in the next year?",
+            choices = c("Remove 1 vehicle", "No change", "Add 1 vehicle"),
+            selected = "1"
           )
+          
         ),
         mainPanel(
           h3("Details of Your Vehicle(s)"),
@@ -425,10 +434,25 @@ fluidPage(
             )
           ),
           
+          
+          
           conditionalPanel(
             condition = "input.num_cars == '0'",
-            p("Since your household does not own a vehicle, we will move on to the next section.")
+            bsCollapse(
+              id = "car0_collapse",
+              open = "car0_panel",
+              bsCollapsePanel(
+                title = "No household Vehicle",
+                value = "car0_panel",
+                selectInput("car0_Commute", "How do you get to work?", choices = c("Active travel (walking / cycling)", "Public transport", "Car-sharing")),
+                selectInput("car0_PayForPT", "How do you pay for public transport?", choices = c("Pay as you go", "Daily tickets", "Weekly/Monthly pass")),
+                selectInput("car0_CarClubNear", "Do you have a car-club near you?", choices = c("Yes", "No")),
+                selectInput("car0_CarClubMember", "Do you have a car-club membership?", choices = c("Yes", "No"))
+
+              )
+            )
           ),
+          
           hr(),
           actionButton("to_rp2_button", "Continue ->", class = "btn-primary")
         )
