@@ -1390,308 +1390,317 @@ function(input, output, session) {
   })
   
   # ========= VERSION 4: Menu Builder (REFACTORED) =========
-  
   output$sa_ui_placeholder5 <- renderUI({
-    
-    # --- PREREQUISITES ---
     req(input$num_cars)
-    if (input$num_cars != "0") {
-      req(input$car1_type, input$car1_fuel, input$car1_mileage)
-    }
     
-    "%||%" <- function(a, b) if (!is.null(a)) a else b
-    
-    cost_func <- function(fuel, mileage, veh_type = "Car") {
-      base_costs <- list("Petrol" = 150, "Diesel" = 160, "Fully Electric" = 80, "Plug-in Hybrid" = 120)
-      mnorm <- gsub("[^0-9-]", "", mileage)
-      mileage_multiplier <- switch(mnorm, "0-2000" = 0.6, "2001-5000" = 1.0, "5001-10000" = 1.5, "10001+" = 2.2, 1.0)
-      type_multiplier <- switch(veh_type, "Car" = 1.0, "Van" = 1.35, "Motorbike" = 0.55, 1.0)
-      parking <- switch(mnorm, "0-2000" = 5, "2001-5000" = 10, "5001-10000" = 15, "10001+" = 20, 0)
-      total_base <- (base_costs[[fuel]] %||% 150) * type_multiplier
-      fixed_cost <- total_base * 0.4 
-      variable_cost <- (total_base * 0.6 * mileage_multiplier) + (parking * 1.2)
-      return(list(fixed = round(fixed_cost), variable = round(variable_cost), total = round(fixed_cost + variable_cost)))
-    }
-    
-    n_veh <- switch(input$num_cars, "0" = 0, "1" = 1, "2" = 2, "3" = 3, "4+" = 4)
-    
-    per_car_costs_list <- lapply(seq_len(n_veh), function(i) {
-      fuel_i <- input[[paste0("car", i, "_fuel")]] %||% "Petrol"; type_i <- input[[paste0("car", i, "_type")]] %||% "Car"
-      mileage_i <- input[[paste0("car", i, "_mileage")]] %||% "5,001 - 10,000"
-      cost_func(fuel_i, mileage_i, type_i)
-    })
-    per_car_descs <- sapply(seq_len(n_veh), function(i) {
-      paste0("Your ", tolower(input[[paste0("car", i, "_fuel")]] %||% "petrol"), " ", 
-             tolower(input[[paste0("car", i, "_type")]] %||% "car"), ".")
-    })
-    per_car_fixed_costs <- if(n_veh > 0) sapply(per_car_costs_list, `[[`, "fixed") else numeric(0)
-    per_car_variable_costs <- if(n_veh > 0) sapply(per_car_costs_list, `[[`, "variable") else numeric(0)
-    per_car_total_costs <- if(n_veh > 0) sapply(per_car_costs_list, `[[`, "total") else numeric(0)
-    
-    total_current_cost <- if (n_veh > 0) sum(per_car_total_costs) else 0
-    scenario_budget <- max(300, total_current_cost * 1.2)
-    
-    panels <- if (n_veh > 0) {
-      lapply(seq_len(n_veh), function(i) {
-        bsCollapsePanel(
-          title = paste0("Vehicle ", i, " — £", per_car_total_costs[i], "/m"),
-          value = paste0("vehicle_panel_", i),
-          tags$div( style = "padding:8px 4px;",
-                    tags$p(per_car_descs[i], style = "margin:0 0 8px 0; color:#444;"),
-                    fluidRow(
-                      column(4, radioButtons(inputId = paste0("car", i, "_keep"), label = "Decision:", choices = list("Keep" = 1, "Remove" = 0), selected = 1)),
-                      column(5, radioButtons(inputId = paste0("car", i, "_usage"), label = "Change weekly trips?", choices = list("Halve (-50%)" = 0.5, "Reduce (-25%)" = 0.75, "Same" = 1.0, "Increase (+25%)" = 1.25), selected = 1.0)),
-                      column(3, style = "text-align:right;", span(style = "font-weight:bold; color:#007bff;", paste0("£", per_car_total_costs[i], "/month")), br(), span(style = "font-size:0.85em; color:#666;", paste0("removal ⇒ −£", per_car_total_costs[i])))
-                    )
-          )
-        )
-      })
-    } else { list() }
-    
-    collapse_ui <- if (n_veh == 0) {
-      tags$div(style = "margin-top:12px; color:#666;", "You do not list any household vehicles.")
-    } else {
-      do.call(bsCollapse, c(list(id = "vehicles_collapse", open = paste0("vehicle_panel_", seq_len(n_veh)), multiple = TRUE), panels))
-    }
-    
-    perCarFixedCostsJS <- if(n_veh > 0) paste0("[", paste(per_car_fixed_costs, collapse = ","), "]") else "[]"
-    perCarVariableCostsJS <- if(n_veh > 0) paste0("[", paste(per_car_variable_costs, collapse = ","), "]") else "[]"
-    
-    # --- MAIN UI LAYOUT ---
-    tagList(
-      div(class = "enhanced-budget-overview",
-          style = "background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%); color: white; padding: 25px; border-radius: 12px; margin-bottom: 25px; max-width: 1000px; margin-left: auto; margin-right: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15);",
-          
-          # Header section
-          div(style = "text-align: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 15px;",
-              h3("Transport Budget Planning", style = "margin: 0; font-weight: 300;"),
-              p("5 years from now", style = "margin: 5px 0 0 0; opacity: 0.9; font-size: 1.1em;")
-          ),
-          
-          # Context and factors section
-          fluidRow(
-            column(6,
-                   h5("Expected Changes", style = "color: #f39c12; margin-bottom: 15px;"),
-                   div(style = "background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px;",
-                       tags$table(class="table table-sm", style="color: white; margin-bottom: 0;",
-                                  tags$tbody(
-                                    tags$tr(tags$td(icon("check-circle"), " Car club:"), tags$td("Enterprise Car-club runs in your neighbourhood")),
-                                    tags$tr(tags$td(icon("bus"), " Public transport:"), tags$td("Runs 24/7 every day"))
-                                  )
-                       )
-                   )
-            ),
-            column(6,
-                   h5("Budget Allocation", style = "color: #2ecc71; margin-bottom: 15px;"),
-                   div(style = "background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px;",
-                       
-                       # Row 1: Current | Allocated (top numbers pure white)
-                       div(style = "display: flex; gap: 15px; margin-bottom: 12px;",
-                           div(style = "flex: 1; text-align: left;",
-                               p("Current monthly cost:", style = "margin: 0; opacity: 0.8; font-size: 0.9em;"),
-                               # pure white, same size as 'available'
-                               h4(paste0("£", total_current_cost),
-                                  style = "margin: 5px 0; color: #ffffff; font-size: 1.5em; font-weight: 700;")
-                           ),
-                           div(style = "flex: 1; text-align: right;",
-                               p("Allocated:", style = "margin: 0; opacity: 0.8; font-size: 0.9em;"),
-                               # pure white, same size
-                               span(id = "allocated_budget", "£0",
-                                    style = "display: inline-block; font-size: 1.5em; font-weight: 700; color: #ffffff;")
-                           )
-                       ),
-                       
-                       hr(style = "border-color: rgba(255,255,255,0.03); margin: 8px 0;"),
-                       
-                       # Row 2: Available | Remaining (bottom numbers distinct)
-                       div(style = "display: flex; gap: 15px; align-items: center;",
-                           div(style = "flex: 1; text-align: left;",
-                               p("Available budget:", style = "margin: 0; opacity: 0.8; font-size: 0.9em;"),
-                               # orange pill, same size
-                               span(style = "display: inline-block; font-size: 1.5em; font-weight: 700; color: #f39c12;
-                           padding: 4px 8px; border-radius: 6px; background: rgba(243,156,18,0.09);",
-                           paste0("£", round(scenario_budget)))
-                           ),
-                           div(style = "flex: 1; text-align: right;",
-                               p("Remaining:", style = "margin: 0; opacity: 0.8; font-size: 0.9em;"),
-                               # green pill, same size, strong contrast
-                               span(id = "remaining_budget",
-                                    paste0("£", round(scenario_budget)),
-                                    style = "display: inline-block; font-size: 1.5em; font-weight: 700; color: #2ecc71;
-                            padding: 4px 8px; border-radius: 6px; background: rgba(46,204,113,0.09);")
-                           )
-                       )
-                   )
-            )
-            
-          ),
-          
-          # Question prompt and continue button
-          div(style = "text-align: center; margin-top: 20px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.2);",
-              p("Given these expected changes, how would you organise your household transport in 5 years' time?", 
-                style = "font-size: 1.1em; margin-bottom: 15px; font-style: italic; opacity: 0.95;"),
-              div(id = "portfolio_summary", "Configure your transport options below", 
-                  style = "font-size: 0.95em; opacity: 0.8; margin-bottom: 15px; min-height: 20px;"),
-              actionButton("continue_budget", "Continue with Portfolio", 
-                           class = "btn-warning btn-lg", disabled = TRUE, 
-                           style = "font-weight: bold; padding: 12px 30px; border: none; border-radius: 25px;")
-          )
-      ),
+    # Mode data generation (simplified)
+    modes <- reactive({
+      create_vehicle_desc <- function(car_num) {
+        fuel <- input[[paste0("car", car_num, "_fuel")]]
+        type <- input[[paste0("car", car_num, "_type")]]
+        if (is.null(fuel) || is.null(type)) return("Unknown Vehicle")
+        paste0(tolower(fuel), " ", tolower(type))
+      }
       
-      div(style = "max-width: 1000px; margin: 0 auto;",
-          fluidRow(
-            column(6,
-                   div(class = "budget-section", style = "border: 2px solid #007bff; border-radius: 8px; padding: 12px; margin-bottom: 15px; background: #f8f9ff;",
-                       h6("Vehicle Ownership", style = "color: #007bff; font-weight: bold;"),
-                       div(style = "display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;",
-                           div("Manage each vehicle below."),
-                           actionButton("remove_all_vehicles", "Remove all", class = "btn-danger btn-sm")
-                       ),
-                       collapse_ui,
-                       tags$div(style = "margin-top:12px; border-top:1px dashed #e0e6f0; padding-top:10px;",
-                                checkboxInput("add_vehicle_active", "Add vehicle state", value = FALSE, width = '0px'),
-                                actionButton("add_vehicle_btn", "Add a Vehicle", class = "btn-success btn-sm"),
-                                tags$div(id = "add_vehicle_panel", style = "display: none; padding: 12px; border-radius: 6px; margin-top: 10px; background-color: #e9ecef;",
-                                         div(style="display:flex; justify-content:space-between; align-items:center;",
-                                             h6("Configure New Vehicle", style="margin:0;"),
-                                             span(id="new_vehicle_cost_display", style="font-weight:bold; color:#28a745;")
-                                         ),
-                                         selectInput("new_veh_type", "Type:", c("Car", "Van", "Motorbike"), width = "100%"),
-                                         selectInput("new_veh_fuel", "Fuel:", c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid"), width = "100%"),
-                                         selectInput("new_veh_mileage", "Mileage:", c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"), width = "100%"),
-                                         actionButton("cancel_add_vehicle_btn", "Cancel Addition", class = "btn-secondary btn-xs")
-                                )
-                       )
-                   )
-            ),
-            column(6,
-                   div(class = "budget-section", style = "border: 2px solid #4CAF50; border-radius: 8px; padding: 12px; margin-bottom: 15px; background: #f8fff8;",
-                       h6("Car-Sharing Membership", style = "color: #4CAF50; font-weight: bold;"),
-                       radioButtons("carclub_access", "Access Distance:", inline = TRUE, choices = list("None" = 0, "On-street" = 20, "5min walk" = 35, "At home" = 55), selected = 0),
-                       radioButtons("carclub_hours", "Availability:", inline = TRUE, choices = list("None" = 0, "9-5" = 5, "Extended" = 15, "24/7" = 25), selected = 0),
-                       radioButtons("carclub_usage", "Usage Level:", inline = TRUE, choices = list("None" = 0, "Light" = 8, "Regular" = 20, "Heavy" = 45), selected = 0),
-                       div(id = "carclub_cost_display", style = "margin-top: 10px; padding: 8px; background: white; border-radius: 4px; text-align: center; font-weight: bold; color: #4CAF50;", "£0/month")
-                   )
-            )
-          ),
-          
-          fluidRow(
-            column(6,
-                   div(class = "budget-section", style = "border: 2px solid #00BCD4; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: #f0fdff;",
-                       h6("Public Transport", style = "color: #00BCD4; font-weight: bold;"),
-                       radioButtons("pt_package", "Choose your pass:",
-                                    choices = list(
-                                      "Pay Per Trip" = 0,
-                                      "Leeds City Pass (£35/month)" = 35,
-                                      "West Yorkshire Pass (£65/month)" = 65
-                                    ), selected = 0)
-                   )
-            ),
-            column(6,
-                   div(class = "budget-section", style = "border: 2px solid #FF9800; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: #fffaf0;",
-                       h6("Bike Share & Active", style = "color: #FF9800; font-weight: bold;"),
-                       radioButtons("micro_package", "Choose your package:",
-                                    choices = list(
-                                      "None (use own equipment)" = 0,
-                                      "Basic Bike Share (£15/month)" = 15,
-                                      "Enhanced Package (£30/month, e-bikes & storage)" = 30
-                                    ), selected = 0)
-                   )
-            )
-          )
-      ),
+      modes_list <- list()
+      num_cars <- as.integer(gsub("\\+", "", input$num_cars))
+      if (is.na(num_cars)) num_cars <- 0
       
-      tags$script(HTML(sprintf('
-        var scenarioBudget = %d;
-        var perCarFixedCosts = %s;
-        var perCarVariableCosts = %s;
-        const costData = {
-            baseCosts: {"Petrol": 150, "Diesel": 160, "Fully Electric": 80, "Plug-in Hybrid": 120},
-            mileageMultipliers: {"0-2,000": 0.6, "2,001-5,000": 1.0, "5,001-10,000": 1.5, "10,001+": 2.2},
-            typeMultipliers: {"Car": 1.0, "Van": 1.35, "Motorbike": 0.55},
-            parkingCosts: {"0-2,000": 5, "2,001-5,000": 10, "5,001-10,000": 15, "10,001+": 20}
-        };
-        function calculateNewVehicleCost() {
-            const fuel = $("#new_veh_fuel").val() || "Petrol";
-            const mileage = $("#new_veh_mileage").val() || "5,001-10,000";
-            const type = $("#new_veh_type").val() || "Car";
-            const totalBase = (costData.baseCosts[fuel] || 150) * (costData.typeMultipliers[type] || 1.0);
-            const variableCost = (totalBase * 0.6 * (costData.mileageMultipliers[mileage] || 1.0)) + ((costData.parkingCosts[mileage] || 0) * 1.2);
-            const fixedCost = totalBase * 0.4;
-            return Math.round(fixedCost + variableCost);
+      # Current vehicles
+      if (num_cars > 0) {
+        for (i in 1:min(num_cars, 4)) {
+          modes_list[[length(modes_list) + 1]] <- list(
+            id = paste0("current_", i), 
+            title = paste("Your", create_vehicle_desc(i)), 
+            icon = "car-side", 
+            is_current = TRUE,
+            access = "Immediate, 24/7 at home", 
+            availability = "Very High (99% success rate)", 
+            cost_val = 350
+          )
         }
-        function updateBudgetDisplay() {
-          var vehicleCost = 0;
-          var removedTotal = 0;
-          for (var i = 0; i < perCarFixedCosts.length; i++) {
-            var keepVal = parseInt($("input[name=car" + (i+1) + "_keep]:checked").val());
-            var usageMultiplier = parseFloat($("input[name=car" + (i+1) + "_usage]:checked").val());
-            if (keepVal === 1) {
-              vehicleCost += perCarFixedCosts[i] + (perCarVariableCosts[i] * usageMultiplier);
-            } else {
-              removedTotal += perCarFixedCosts[i] + perCarVariableCosts[i];
+      }
+      
+      # Alternative modes
+      modes_list <- append(modes_list, list(
+        list(id = "alt_1", title = "A New Configurable Car", icon = "car-alt", is_current = FALSE, 
+             is_configurable = TRUE, access = "Immediate, 24/7 at home", availability = "Highest (Brand New)", cost_val = NULL),
+        list(id = "car_sharing", title = "Peer-to-Peer Car-Sharing Membership", icon = "users", is_current = FALSE,
+             access = "Within a 10 min walk", availability = "High (95% success rate)", cost_val = 60),
+        list(id = "car_club", title = "Closed Loop Car-Club Membership", icon = "users", is_current = FALSE,
+             access = "Within a 10 min walk", availability = "High (95% success rate)", cost_val = 60),
+        list(id = "public_transport", title = "Yorkshire Pass: Covers All Public Transport", icon = "bus-alt", is_current = FALSE,
+             access = "Within a 5 min walk", availability = "Medium (90% success rate)", cost_val = 75)
+      ))
+      
+      return(modes_list)
+    })()
+    
+    # Initial trip allocation
+    num_modes <- length(modes)
+    initial_trips_commute <- rep(0, num_modes)
+    initial_trips_leisure <- rep(0, num_modes)
+    
+    if (num_modes > 0) {
+      num_owned <- sum(vapply(modes, function(m) m$is_current, logical(1)))
+      
+      if (num_owned > 0) {
+        for(i in 1:num_modes) {
+          if(modes[[i]]$is_current) {
+            initial_trips_commute[i] <- max(1, round(8/num_owned))
+            initial_trips_leisure[i] <- max(1, round(6/num_owned))
+          } else {
+            if(modes[[i]]$id == "public_transport") {
+              initial_trips_commute[i] <- 2
+              initial_trips_leisure[i] <- 2
+            } else if(modes[[i]]$id %in% c("car_sharing", "car_club")) {
+              initial_trips_commute[i] <- 1
+              initial_trips_leisure[i] <- 1
             }
           }
-          if ($("#add_vehicle_active").is(":checked")) {
-            const newCost = calculateNewVehicleCost();
-            vehicleCost += newCost;
-            $("#new_vehicle_cost_display").text("Cost: £" + newCost + "/month");
-          }
-          var carclubCost = parseInt($("input[name=carclub_access]:checked").val()) + parseInt($("input[name=carclub_hours]:checked").val()) + parseInt($("input[name=carclub_usage]:checked").val());
-          var ptCost = parseInt($("input[name=pt_package]:checked").val());
-          var microCost = parseInt($("input[name=micro_package]:checked").val());
-          
-          $("#carclub_cost_display").text("£" + carclubCost + "/month");
-          var totalAllocated = Math.round(vehicleCost + carclubCost + ptCost + microCost);
-          var remaining = scenarioBudget - totalAllocated;
-          $("#allocated_budget").text("£" + totalAllocated);
-          $("#remaining_budget").text("£" + remaining);
-          
-          if (remaining < 0) {
-            $("#remaining_budget").css("color", "#e74c3c");
-            $("#continue_budget").prop("disabled", true);
-          } else if (totalAllocated === 0) {
-            $("#remaining_budget").css("color", "#95a5a6");
-            $("#continue_budget").prop("disabled", true);
-          } else {
-            $("#remaining_budget").css("color", "#2ecc71");
-            $("#continue_budget").prop("disabled", false);
-          }
-          
-          var summary = totalAllocated === 0 ? "Configure your transport options below" : "Total portfolio: £" + totalAllocated + "/month";
-          if (removedTotal > 0) summary += " (saved £" + Math.round(removedTotal) + ")";
-          $("#portfolio_summary").text(summary);
         }
-        $(document).on("click", "#add_vehicle_btn", function() {
-          $("#add_vehicle_panel").slideDown();
-          $(this).hide();
-          $("#add_vehicle_active").prop("checked", true).trigger("change");
-        });
-        $(document).on("click", "#cancel_add_vehicle_btn", function() {
-          $("#add_vehicle_panel").slideUp();
-          $("#add_vehicle_btn").show();
-          $("#add_vehicle_active").prop("checked", false).trigger("change");
-        });
+      } else {
+        initial_trips_commute[1] <- 4
+        initial_trips_leisure[1] <- 3
+        if(num_modes > 1) {
+          initial_trips_commute[2] <- 3
+          initial_trips_leisure[2] <- 2
+        }
+      }
+    }
+    
+    # Generate column headers
+    mode_headers <- lapply(1:num_modes, function(i) {
+      mode <- modes[[i]]
+      header_style <- if (mode$is_current) {
+        "background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); color: white; text-align: center; position: relative;"
+      } else {
+        "background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; text-align: center;"
+      }
+      
+      header_content <- if (!is.null(mode$is_configurable) && mode$is_configurable) {
+        tagList(
+          tags$div(style = "display: flex; align-items: center; justify-content: center; margin-bottom: 8px;", 
+                   icon(mode$icon, class = "fa-sm", style="margin-right: 6px;"), 
+                   tags$strong(mode$title, style = "font-size: 0.9em;")),
+          tags$div(style = "padding: 6px; border-radius: 4px; background-color: rgba(255,255,255,0.1);",
+                   selectInput(paste0("sa_alt_1_replace_type_", i), "Type:", 
+                               c("Car", "Van", "Motorbike"), width = "100%"),
+                   selectInput(paste0("sa_alt_1_replace_fuel_", i), "Fuel:", 
+                               c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid"), width = "100%"),
+                   selectInput(paste0("sa_alt_1_replace_mileage_", i), "Mileage:", 
+                               c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"), width = "100%"))
+        )
+      } else {
+        tags$div(style = "display: flex; align-items: center; justify-content: center;", 
+                 icon(mode$icon, class = "fa-sm", style="margin-right: 6px;"), 
+                 tags$strong(mode$title, style = "font-size: 0.9em;"))
+      }
+      
+      # Add OWNED badge for current vehicles
+      if (mode$is_current) {
+        header_content <- tagList(
+          header_content,
+          tags$div(style = "position: absolute; top: 2px; right: 2px; background-color: #ffd700; color: #333; padding: 1px 4px; border-radius: 3px; font-size: 0.6em; font-weight: bold;", "OWNED")
+        )
+      }
+      
+      tags$th(style = header_style, header_content)
+    })
+    
+    # Generate data cells for each row
+    create_data_row <- function(attribute, get_cell_content) {
+      row_cells <- lapply(1:num_modes, function(i) {
+        mode <- modes[[i]]
+        cell_style <- if (mode$is_current) {
+          "text-align: center; vertical-align: middle; background-color: #d4edda; font-size: 0.85em;"
+        } else {
+          "text-align: center; vertical-align: middle; background-color: #f8f9fa; font-size: 0.85em;"
+        }
+        tags$td(style = cell_style, get_cell_content(mode, i))
+      })
+      
+      tags$tr(
+        tags$th(style = "background-color: #343a40; color: white; font-weight: bold; text-align: left; padding: 12px;", attribute),
+        do.call(tagList, row_cells)
+      )
+    }
+    
+    # Create table structure
+    table_content <- tagList(
+      # Header row
+      tags$tr(
+        tags$th(style = "background-color: #212529; color: white; font-weight: bold; width: 15%;", "Attribute"),
+        do.call(tagList, mode_headers)
+      ),
+      
+      # Access row
+      create_data_row("Access", function(mode, i) mode$access),
+      
+      # Availability row  
+      create_data_row("Availability", function(mode, i) mode$availability),
+      
+      # Fixed monthly cost row
+      create_data_row("Fixed Monthly Cost", function(mode, i) {
+        if (is.null(mode$cost_val)) {
+          tags$span(id="dynamic_cost_display", textOutput(paste0("dynamic_price_alt_", i), inline = TRUE))
+        } else { 
+          tags$strong(paste0("£", mode$cost_val))
+        }
+      }),
+      
+      # Commute trips row
+      create_data_row("Trips per Week (Commute)", function(mode, i) {
+        tags$div(class = "slider-container", style = "padding: 8px 4px;",
+                 sliderInput(paste0("commute_trips_", mode$id), NULL, 
+                             min = 0, max = 20, value = initial_trips_commute[i], step = 1, 
+                             width = "100%"),
+                 tags$span(class = "trips-value-display", style = "font-size: 0.75em; color: #007bff; font-weight: bold;",
+                           paste0(initial_trips_commute[i], " trips")))
+      }),
+      
+      # Leisure trips row
+      create_data_row("Trips per Week (Leisure)", function(mode, i) {
+        tags$div(class = "slider-container", style = "padding: 8px 4px;",
+                 sliderInput(paste0("leisure_trips_", mode$id), NULL, 
+                             min = 0, max = 20, value = initial_trips_leisure[i], step = 1, 
+                             width = "100%"),
+                 tags$span(class = "trips-value-display", style = "font-size: 0.75em; color: #28a745; font-weight: bold;",
+                           paste0(initial_trips_leisure[i], " trips")))
+      })
+    )
+    
+    # Collect slider IDs for JavaScript
+    commute_slider_ids <- vapply(modes, function(m) paste0("commute_trips_", m$id), character(1))
+    leisure_slider_ids <- vapply(modes, function(m) paste0("leisure_trips_", m$id), character(1))
+    all_slider_ids <- c(commute_slider_ids, leisure_slider_ids)
+    
+    # Main UI layout
+    tagList(
+      tags$style(HTML("
+    .table { max-width: 1200px; margin: 0 auto; table-layout: fixed; }
+    .table th, .table td { padding: 8px 4px; }
+    .slider-container { position: relative; }
+    .trips-value-display { display: block; text-align: center; margin-top: 4px; }
+    .combined-info-box { 
+      margin: 0 0 25px 0; padding: 18px; background: linear-gradient(135deg, #e3f2fd 0%, #f8f9fa 100%); 
+      border-left: 5px solid #007bff; border-radius: 8px; max-width: 1200px; margin-left: auto; margin-right: auto;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .scenario-section { margin-bottom: 15px; }
+    .summary-section h5 { margin-top: 12px; }
+    .summary-pill { 
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 16px; border-radius: 8px; margin-bottom: 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+    }
+    .summary-pill .label { font-weight: 700; color: #495057; }
+    .summary-pill .value { font-size: 18px; font-weight: 800; }
+    .total-ok { color: #155724; }
+    .total-error { color: #721c24; }
+    ")),
+    
+    # Updated summary box matching the second example
+    div(class = "combined-info-box",
+        h4("In this scenario, how would your household travel in the next 3 years?"),
+        fluidRow(
+          column(width = 6,
+                 div(class = "scenario-section",
+                     h5("Leeds 2030 Scenario:"),
+                     tags$table(class = "table table-sm table-borderless", style = "margin-bottom: 0;",
+                                tags$tbody(
+                                  tags$tr(tags$td(icon("bus"), strong("Mobility network:")), 
+                                          tags$td("Bus/tram/train in Leeds runs 24/7 all week")),
+                                  tags$tr(tags$td(icon("check-circle"), strong("Car club:")), 
+                                          tags$td("A car-club is organised in your neighbourhood."))
+                                )
+                     )
+                 )
+          ),
+          column(width = 6,
+                 div(class = "summary-section",
+                     h5("Your Travel Summary"),
+                     div(class = "summary-pill", style = "background: linear-gradient(90deg,#e9f7ef,#fff); border: 1px solid #d4edda;",
+                         div(class = "label", "Total Weekly Trips"),
+                         div(class = "value", tags$span(id="trips_summary_val", "0 trips"))
+                     ),
+                     div(class = "summary-pill", style = "background: linear-gradient(90deg,#fff4e6,#fff); border: 1px solid #ffeeba;",
+                         div(class = "label", "Est. Monthly Cost"),
+                         div(class = "value", tags$span(id="cost_summary_val", "£0"))
+                     ),
+                     div(style = "font-size: 12px; color: #6c757d; text-align: center; margin-top: 6px;",
+                         tags$strong("Live update:"), " changing sliders immediately updates trips and cost."
+                     )
+                 )
+          )
+        )
+    ),
+    
+    # Transposed table
+    tags$div(style = "overflow-x: auto;",
+             tags$table(class = "table table-bordered",
+                        tags$thead(),
+                        tags$tbody(table_content)
+             )
+    ),
+    
+    # JavaScript for updating displays
+    tags$script(HTML(paste0("
+    (function() {
+      const slider_ids = ", jsonlite::toJSON(all_slider_ids), ";
+      
+      function updateAllDisplays() {
+        let total_trips = 0;
+        let total_cost = 0;
         
-        $(document).on("click", "#remove_all_vehicles", function(e) {
-          for (var i = 0; i < perCarFixedCosts.length; i++) {
-            var sel = $("input[name=\\"car" + (i+1) + "_keep\\"][value=\\"0\\"]");
-            if (sel.length) sel.prop("checked", true);
-          }
-          $("input[name=\\"car1_keep\\"]").trigger("change");
-        });
+        for (const id of slider_ids) {
+          const slider = $('#' + id);
+          if (!slider.length) continue;
+          
+          const val = Number(slider.val());
+          total_trips += val;
+          
+          // Update individual trip display
+          slider.closest('.slider-container').find('.trips-value-display')
+            .text(val + (val === 1 ? ' trip' : ' trips'));
+        }
         
-        $(document).on("change", "input, select", updateBudgetDisplay);
+        // Calculate estimated costs (simplified)
+        total_cost = total_trips * 8.5; // Rough estimate
         
-        setTimeout(updateBudgetDisplay, 200);
-    ', 
-    as.integer(round(scenario_budget)), 
-    perCarFixedCostsJS,
-    perCarVariableCostsJS
-      )))
+        const summary_span = $('#trips_summary_val');
+        const cost_span = $('#cost_summary_val');
+        
+        summary_span.text(total_trips + (total_trips === 1 ? ' trip' : ' trips'));
+        cost_span.text('£' + Math.round(total_cost));
+        
+        // Enable/disable button based on trip count
+        if (total_trips >= 5 && total_trips <= 50) {
+          summary_span.removeClass('total-error').addClass('total-ok');
+          $('#to_sa_button4').prop('disabled', false);
+        } else {
+          summary_span.removeClass('total-ok').addClass('total-error');
+          $('#to_sa_button4').prop('disabled', true);
+        }
+      }
+      
+      $(document).on('shiny:inputchanged', function(event) {
+        if (slider_ids.includes(event.name)) {
+          setTimeout(updateAllDisplays, 50);
+        }
+      });
+      
+      $(document).ready(function() {
+        setTimeout(updateAllDisplays, 150);
+      });
+    })();
+    "))),
+    
+    tags$div(style = "margin-top: 25px; text-align: center;",
+             actionButton("to_sa_button5", "Continue to Next Section", class = "btn btn-success btn-lg")
+    )
     )
   })
-  
   
     
   # This UI placeholder now just creates the box where the text will go.

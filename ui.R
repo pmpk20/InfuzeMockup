@@ -506,7 +506,7 @@ fluidPage(
     tabPanel("Choices: Version 3: Menu by slider", value = "sa_panel_4", uiOutput("sa_ui_placeholder4")),
 
     # =========== Part 3: MENU BASED ===========
-    tabPanel("Choices: Version 4: Budget Allocator", value = "sa_panel_5", uiOutput("sa_ui_placeholder5")),
+    tabPanel("Choices: Version 3B: Revised menu with sliders", value = "sa_panel_5", uiOutput("sa_ui_placeholder5")),
     
     # =========== Part 3B: MENU BASED ===========
     tabPanel("Choices: Version 5: Different Menu", value = "sa_panel_6", uiOutput("sa_ui_placeholder6")),
