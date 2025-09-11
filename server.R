@@ -1411,9 +1411,10 @@ function(input, output, session) {
         for (i in 1:min(num_cars, 4)) {
           modes_list[[length(modes_list) + 1]] <- list(
             id = paste0("current_", i), 
-            title = paste("Your", create_vehicle_desc(i)), 
+            title = paste("Your currently owned vehicle: a ", create_vehicle_desc(i)), 
             icon = "car-side", 
             is_current = TRUE,
+            description = "You would still own this vehicle",
             access = "Immediate, 24/7 at home", 
             availability = "Very High (99% success rate)", 
             cost_val = 350
@@ -1423,13 +1424,20 @@ function(input, output, session) {
       
       # Alternative modes
       modes_list <- append(modes_list, list(
-        list(id = "alt_1", title = "A New Configurable Car", icon = "car-alt", is_current = FALSE, 
-             is_configurable = TRUE, access = "Immediate, 24/7 at home", availability = "Highest (Brand New)", cost_val = NULL),
+        list(id = "alt_1", title = "Add a new vehicle:", icon = "car-alt", is_current = FALSE,  is_configurable = TRUE, 
+             description = "You would own a new vehicle", access = "Immediate, 24/7 at home", 
+             availability = "Highest (Brand New)", cost_val = NULL),
+        
         list(id = "car_sharing", title = "Peer-to-Peer Car-Sharing Membership", icon = "users", is_current = FALSE,
+             description = "A peer-to-peer neighbourhood sharing model would be operating", 
              access = "Within a 10 min walk", availability = "High (95% success rate)", cost_val = 60),
+        
         list(id = "car_club", title = "Closed Loop Car-Club Membership", icon = "users", is_current = FALSE,
+             description = "You would have a membership to Enterprise car-club", 
              access = "Within a 10 min walk", availability = "High (95% success rate)", cost_val = 60),
+        
         list(id = "public_transport", title = "Yorkshire Pass: Covers All Public Transport", icon = "bus-alt", is_current = FALSE,
+             description = "You would have a monthly pass covering all local public transport (bus, tram, train)?", 
              access = "Within a 5 min walk", availability = "Medium (90% success rate)", cost_val = 75)
       ))
       
@@ -1521,7 +1529,7 @@ function(input, output, session) {
       })
       
       tags$tr(
-        tags$th(style = "background-color: #343a40; color: white; font-weight: bold; text-align: left; padding: 12px;", attribute),
+        tags$th(style = "background-color: white; color: black; font-weight: bold; text-align: left; padding: 12px;", attribute),
         do.call(tagList, row_cells)
       )
     }
@@ -1530,9 +1538,12 @@ function(input, output, session) {
     table_content <- tagList(
       # Header row
       tags$tr(
-        tags$th(style = "background-color: #212529; color: white; font-weight: bold; width: 15%;", "Attribute"),
+        tags$th(style = "background-color: white; color: black; font-weight: bold; width: 15%;", "Attribute"),
         do.call(tagList, mode_headers)
       ),
+      
+      # Test row
+      create_data_row("Description", function(mode, i) mode$description),
       
       # Access row
       create_data_row("Access", function(mode, i) mode$access),
@@ -1702,7 +1713,6 @@ function(input, output, session) {
     )
   })
   
-    
   # This UI placeholder now just creates the box where the text will go.
   # ========= VERSION 5 Different Menu =========
   
