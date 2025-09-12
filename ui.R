@@ -63,7 +63,7 @@ fluidPage(
       
       # --- NEW: GitHub Callout Box ---
       div(class = "github-callout",
-          h5("This is an open-source project"),
+          h5("This is an open-source project by Dr Peter King"),
           p("You can explore, download, or contribute to the code on GitHub.", style = "margin-bottom: 15px;"),
           tags$a(href = "https://github.com/pmpk20/InfuzeMockup",
                  target = "_blank", # Opens in a new tab
@@ -89,13 +89,15 @@ fluidPage(
     
     # =========== STEP 1A: ABOUT YOU ===========
     tabPanel(
-      "Step 1A: Screeners",
+      "Step 1: Screeners",
       value = "Step_1A_Screeners",
       h3("About You"),
       p("These questions help us understand how travel choices differ between different groups of people. All responses are anonymous."),
       
       div(class = "ethics-note",
-          p("TODO: Change survey logic to screen out <18, no licence, ")
+          p("TODO: Change survey logic to screen out <18, no licence, "),
+          hr(),
+          p("NOTE: We may use more socioeconomic questions, this is just a placeholder")
       ),
       hr(),
       selectInput("gender", 
@@ -148,193 +150,193 @@ fluidPage(
     
     
     
-    # =========== STEP 1B: EMPLOYMENT ===========
-    tabPanel(
-      "Step 1b: Employment",
-      value = "Step_1B_Employment",
-      h3("About You"),
-      p("These questions help us understand how travel choices differ between different groups of people. All responses are anonymous."),
-
-      hr(),
-      
-      # Remove selected defaults first
-      selectInput("1BEmployment_Occupation", "Which of these descriptions best fits your current occupation?", 
-                  width = "50%",
-                  choices = c(                    "Homemaker / housewife or house husband",
-                                                  "Student / Full time education",
-                              "Retired",
-                              "Unemployed / on benefit",
-                              "Factory / manual worker",
-                              "Crafts / tradesperson / skilled worker",
-                              "Office / clerical / administration",
-                              "Middle management",
-                              "Senior management",
-                              "Professional")),
-      
-      selectInput("1BEmployment_WFH", 
-                  "How often do your work from home?",
-                  width = "50%",
-                  selected = "Daily",
-                  choices = c("Never",
-                              "Less often than weekly",
-                              "A few times a week",
-                              "Daily")),
-      
-      div(class = "ethics-note",
-          p("CHECK: Travel mode and time to work only appear if no WFH")
-      ),
-      
-      conditionalPanel(
-        condition = "input['1BEmployment_WFH'] != 'Daily'",
-        selectInput("1BEmployment_TravelType", 
-                    "How do you typically travel to your place of work?",
-                    width = "50%",
-                    choices = c("My own vehicle", "Car club / sharing", "Public transport", "Walk / bike / other active travel")),
-        
-        selectInput("1BEmployment_TravelTime", 
-                    "How long does it take for you to travel to your place of work?",
-                    width = "50%",
-                    choices = c("More than 1 hour", "Between 30 - 60 minutes", "Between 10 - 30 minutes", "Fewer than 10 minutes"))
-      ),
-      
-      hr(),
-      actionButton("to_demographics_yours_button", "Continue ->", class = "btn-primary")
-    ),
-    
-    
-    
-    # =========== STEP 1C: HOUSEHOLD ===========
-    tabPanel(
-      "Step 1C: About Your household",
-      value = "demographics_panel_yours",
-      h3("About Your Household"),
-      p("These questions help us understand how travel choices differ between different groups of people. All responses are anonymous."),
-      hr(),
-      
-      
-      # --- NEW: Dynamic Household Composition Section ---
-      h3("Household Composition"),
-      p("Please add each member of your household, including yourself. This helps us understand travel patterns within families."),
-      
-      actionButton("add_member_btn", "Add Household Member", 
-                   class = "btn-success", icon = icon("user-plus")),
-      hr(),
-      
-      # This is the placeholder where the server will insert new member rows
-      div(id = "household_member_placeholder"),
-      
-      hr(style = "border-top: 2px solid #ccc; margin-top: 30px;"),
-      
-      # --- Original Questions Moved Below ---
-      h3("About Your Household (Overall)"),
-      p("These questions are about your household as a whole."),
-      
-      selectInput("Urbanicity", 
-                  "Would you say that the area you live in is mostly rural or urban?", 
-                  width = "100%",
-                  choices = c("Rural", "Urban")),
-      
-      selectInput("household_size", 
-                  "How many adults (i.e., over 18 years old) including yourself currently live in your household:", 
-                  width = "100%",
-                  choices = c("1 - I live alone", "2", "3", "4", "5+")),
-      
-      
-      
-      selectInput("Urbanicity", 
-                  "Would you say that the area you live in is mostly rural or urban?", 
-                  width = "50%",
-                  choices = c("Rural", "Urban")),
-      
-      selectInput("household_size", 
-                  "How many adults (i.e., over 18 years old) including yourself currently live in your household:", 
-                  width = "50%",
-                  choices = c("1 - I live alone", "2", "3", "4", "5+")),
-      
-      selectInput("household_size_5", 
-                  "How many children younger than 5 years old currently live in your household:", 
-                  width = "50%",
-                  choices = c("0", "1", "2", "3", "4", "5+")),
-      
-      selectInput("household_size_12", 
-                  "How many children between 5 and 12 years old) currently live in your household:", 
-                  width = "50%",
-                  choices = c("0", "1", "2", "3", "4", "5+")),
-      
-      selectInput("household_size_17", 
-                  "How many teenagers (i.e., 13-18 years old) currently live in your household:", 
-                  width = "50%",
-                  choices = c("0", "1", "2", "3", "4", "5+")),
-      
-      selectInput("household_change_adults", 
-                  "How many new adults have started living in your household in the last six months:", 
-                  width = "50%",
-                  choices = c("0", "1", "2", "3", "4", "5+")),
-      
-      selectInput("household_change_children", 
-                  "How many new children (<18yrs) have started living in your household in the last six months:", 
-                  width = "50%",
-                  choices = c("0", "1", "2", "3", "4", "5+")),
-      
-      selectInput("household_change_impairment", 
-                  "How many people in your household have limited physical mobility?", 
-                  width = "50%",
-                  choices = c("0", "1", "2", "3", "4", "5+")),
-      
-      
-      hr(),
-      actionButton("to_demographics_life_button", "Continue ->", class = "btn-primary")
-    ),
-    
-    
-    # =========== STEP 1D: LIFE ===========
-    tabPanel(
-      "Step 1D: About Your Life",
-      value = "demographics_panel_life",
-      h3("About Your Life"),
-      p("These questions are about big changes in your life in the last six months. Your honest answer is appreciated"),
-      h5("ALL WORDING IS PROVISIONAL"),
-      hr(),
-      
-      selectInput("life_moved_job", 
-                  width = "50%",
-                  "Have you changed jobs?", 
-                  choices = c("Yes", "No")),
-      
-      selectInput("life_moved_job", 
-                  width = "50%",
-                  "Have you started working in a new location?", 
-                  choices = c("Yes", "No")),
-      
-      selectInput("life_moved_house", 
-                  width = "50%",
-                  "Have you moved house?", 
-                  choices = c("Yes", "No")),
-      
-      selectInput("life_crime", 
-                  width = "50%",
-                  "Have you been a victim of crime in your local area?", 
-                  choices = c("Yes", "No")),
-      
-      selectInput("life_health", 
-                  width = "50%",
-                  "Has your health status worsened?", 
-                  choices = c("Yes", "No")),
-      
-      selectInput("life_health", 
-                  width = "50%",
-                  "Has your mobility worsened?", 
-                  choices = c("Yes", "No")),
-      
-      hr(),
-      actionButton("to_rp1_button", "Continue ->", class = "btn-primary")
-    ),
-    
-    
-    
+    # # =========== STEP 1B: EMPLOYMENT ===========
+    # tabPanel(
+    #   "Step 1b: Employment",
+    #   value = "Step_1B_Employment",
+    #   h3("About You"),
+    #   p("These questions help us understand how travel choices differ between different groups of people. All responses are anonymous."),
+    # 
+    #   hr(),
+    #   
+    #   # Remove selected defaults first
+    #   selectInput("1BEmployment_Occupation", "Which of these descriptions best fits your current occupation?", 
+    #               width = "50%",
+    #               choices = c(                    "Homemaker / housewife or house husband",
+    #                                               "Student / Full time education",
+    #                           "Retired",
+    #                           "Unemployed / on benefit",
+    #                           "Factory / manual worker",
+    #                           "Crafts / tradesperson / skilled worker",
+    #                           "Office / clerical / administration",
+    #                           "Middle management",
+    #                           "Senior management",
+    #                           "Professional")),
+    #   
+    #   selectInput("1BEmployment_WFH", 
+    #               "How often do your work from home?",
+    #               width = "50%",
+    #               selected = "Daily",
+    #               choices = c("Never",
+    #                           "Less often than weekly",
+    #                           "A few times a week",
+    #                           "Daily")),
+    #   
+    #   div(class = "ethics-note",
+    #       p("CHECK: Travel mode and time to work only appear if no WFH")
+    #   ),
+    #   
+    #   conditionalPanel(
+    #     condition = "input['1BEmployment_WFH'] != 'Daily'",
+    #     selectInput("1BEmployment_TravelType", 
+    #                 "How do you typically travel to your place of work?",
+    #                 width = "50%",
+    #                 choices = c("My own vehicle", "Car club / sharing", "Public transport", "Walk / bike / other active travel")),
+    #     
+    #     selectInput("1BEmployment_TravelTime", 
+    #                 "How long does it take for you to travel to your place of work?",
+    #                 width = "50%",
+    #                 choices = c("More than 1 hour", "Between 30 - 60 minutes", "Between 10 - 30 minutes", "Fewer than 10 minutes"))
+    #   ),
+    #   
+    #   hr(),
+    #   actionButton("to_demographics_yours_button", "Continue ->", class = "btn-primary")
+    # ),
+    # 
+    # 
+    # 
+    # # =========== STEP 1C: HOUSEHOLD ===========
+    # tabPanel(
+    #   "Step 1C: About Your household",
+    #   value = "demographics_panel_yours",
+    #   h3("About Your Household"),
+    #   p("These questions help us understand how travel choices differ between different groups of people. All responses are anonymous."),
+    #   hr(),
+    #   
+    #   
+    #   # --- NEW: Dynamic Household Composition Section ---
+    #   h3("Household Composition"),
+    #   p("Please add each member of your household, including yourself. This helps us understand travel patterns within families."),
+    #   
+    #   actionButton("add_member_btn", "Add Household Member", 
+    #                class = "btn-success", icon = icon("user-plus")),
+    #   hr(),
+    #   
+    #   # This is the placeholder where the server will insert new member rows
+    #   div(id = "household_member_placeholder"),
+    #   
+    #   hr(style = "border-top: 2px solid #ccc; margin-top: 30px;"),
+    #   
+    #   # --- Original Questions Moved Below ---
+    #   h3("About Your Household (Overall)"),
+    #   p("These questions are about your household as a whole."),
+    #   
+    #   selectInput("Urbanicity", 
+    #               "Would you say that the area you live in is mostly rural or urban?", 
+    #               width = "100%",
+    #               choices = c("Rural", "Urban")),
+    #   
+    #   selectInput("household_size", 
+    #               "How many adults (i.e., over 18 years old) including yourself currently live in your household:", 
+    #               width = "100%",
+    #               choices = c("1 - I live alone", "2", "3", "4", "5+")),
+    #   
+    #   
+    #   
+    #   selectInput("Urbanicity", 
+    #               "Would you say that the area you live in is mostly rural or urban?", 
+    #               width = "50%",
+    #               choices = c("Rural", "Urban")),
+    #   
+    #   selectInput("household_size", 
+    #               "How many adults (i.e., over 18 years old) including yourself currently live in your household:", 
+    #               width = "50%",
+    #               choices = c("1 - I live alone", "2", "3", "4", "5+")),
+    #   
+    #   selectInput("household_size_5", 
+    #               "How many children younger than 5 years old currently live in your household:", 
+    #               width = "50%",
+    #               choices = c("0", "1", "2", "3", "4", "5+")),
+    #   
+    #   selectInput("household_size_12", 
+    #               "How many children between 5 and 12 years old) currently live in your household:", 
+    #               width = "50%",
+    #               choices = c("0", "1", "2", "3", "4", "5+")),
+    #   
+    #   selectInput("household_size_17", 
+    #               "How many teenagers (i.e., 13-18 years old) currently live in your household:", 
+    #               width = "50%",
+    #               choices = c("0", "1", "2", "3", "4", "5+")),
+    #   
+    #   selectInput("household_change_adults", 
+    #               "How many new adults have started living in your household in the last six months:", 
+    #               width = "50%",
+    #               choices = c("0", "1", "2", "3", "4", "5+")),
+    #   
+    #   selectInput("household_change_children", 
+    #               "How many new children (<18yrs) have started living in your household in the last six months:", 
+    #               width = "50%",
+    #               choices = c("0", "1", "2", "3", "4", "5+")),
+    #   
+    #   selectInput("household_change_impairment", 
+    #               "How many people in your household have limited physical mobility?", 
+    #               width = "50%",
+    #               choices = c("0", "1", "2", "3", "4", "5+")),
+    #   
+    #   
+    #   hr(),
+    #   actionButton("to_demographics_life_button", "Continue ->", class = "btn-primary")
+    # ),
+    # 
+    # 
+    # # =========== STEP 1D: LIFE ===========
+    # tabPanel(
+    #   "Step 1D: About Your Life",
+    #   value = "demographics_panel_life",
+    #   h3("About Your Life"),
+    #   p("These questions are about big changes in your life in the last six months. Your honest answer is appreciated"),
+    #   h5("ALL WORDING IS PROVISIONAL"),
+    #   hr(),
+    #   
+    #   selectInput("life_moved_job", 
+    #               width = "50%",
+    #               "Have you changed jobs?", 
+    #               choices = c("Yes", "No")),
+    #   
+    #   selectInput("life_moved_job", 
+    #               width = "50%",
+    #               "Have you started working in a new location?", 
+    #               choices = c("Yes", "No")),
+    #   
+    #   selectInput("life_moved_house", 
+    #               width = "50%",
+    #               "Have you moved house?", 
+    #               choices = c("Yes", "No")),
+    #   
+    #   selectInput("life_crime", 
+    #               width = "50%",
+    #               "Have you been a victim of crime in your local area?", 
+    #               choices = c("Yes", "No")),
+    #   
+    #   selectInput("life_health", 
+    #               width = "50%",
+    #               "Has your health status worsened?", 
+    #               choices = c("Yes", "No")),
+    #   
+    #   selectInput("life_health", 
+    #               width = "50%",
+    #               "Has your mobility worsened?", 
+    #               choices = c("Yes", "No")),
+    #   
+    #   hr(),
+    #   actionButton("to_rp1_button", "Continue ->", class = "btn-primary")
+    # ),
+    # 
+    # 
+    # 
     # =========== Part 1a: Revealed Preferences (Vehicle Ownership) ===========
     tabPanel(
-      "Step 2A: Your Household's Vehicles",
+      "Step 2: Your Household's Vehicles",
       value = "rp1_panel",
       sidebarLayout(
         sidebarPanel(
@@ -459,57 +461,57 @@ fluidPage(
       )
     ),
     
-    # =========== Part 1b: Revealed Preferences (Shared Mobility & PT) ===========
-    tabPanel(
-      "Step 2B: Shared & Public Transport",
-      
-      value = "rp2_panel",
-      
-      h3("Your Household's Use of Other Transport"),
-      
-      hr(),
-      
-      radioButtons("car_share_member", 
-                   "Are you currently a member of a car club/car sharing service in Leeds (e.g., Enterprise Car Club)?",
-                   width = "50%",
-                   choices = c("Yes", "No"), selected = "No"),
-      
-      hr(),
-      
-      radioButtons("car_share_aware", 
-                   "Are you aware of a car sharing service available within a 10 minute walk of your home?",
-                   width = "50%",
-                   choices = c("Yes", "No", "Don't know"), selected = "No"),
-      
-      hr(),
-      
-      selectInput("pt_spend", 
-                  "Approximately, how much would you say that your household spends on public transport per month?",
-                  width = "50%",
-                  choices = c("£0", "£1-£30", "£31-£60", "£61-£100", "More than £100")),
-      
-      hr(),
-      
-      actionButton("to_sa_button", "Continue to Stated Adaptation ->", class = "btn-primary btn-lg")
-    ),
-    
+    # # =========== Part 1b: Revealed Preferences (Shared Mobility & PT) ===========
+    # tabPanel(
+    #   "Step 2B: Shared & Public Transport",
+    #   
+    #   value = "rp2_panel",
+    #   
+    #   h3("Your Household's Use of Other Transport"),
+    #   
+    #   hr(),
+    #   
+    #   radioButtons("car_share_member", 
+    #                "Are you currently a member of a car club/car sharing service in Leeds (e.g., Enterprise Car Club)?",
+    #                width = "50%",
+    #                choices = c("Yes", "No"), selected = "No"),
+    #   
+    #   hr(),
+    #   
+    #   radioButtons("car_share_aware", 
+    #                "Are you aware of a car sharing service available within a 10 minute walk of your home?",
+    #                width = "50%",
+    #                choices = c("Yes", "No", "Don't know"), selected = "No"),
+    #   
+    #   hr(),
+    #   
+    #   selectInput("pt_spend", 
+    #               "Approximately, how much would you say that your household spends on public transport per month?",
+    #               width = "50%",
+    #               choices = c("£0", "£1-£30", "£31-£60", "£61-£100", "More than £100")),
+    #   
+    #   hr(),
+    #   
+    #   actionButton("to_sa_button", "Continue to Stated Adaptation ->", class = "btn-primary btn-lg")
+    # ),
+    # # 
     # =========== Part 2: Stated Adaptation (SA) - Placeholder ===========
     # tabPanel("Choices: Version 1 Simple replace", value = "sa_panel", uiOutput("sa_ui_placeholder")),
     
     # =========== Part 2: Stated Adaptation (SA) - Placeholder ===========
-    tabPanel("Choices: Version 1: CE (By mode)", value = "sa_panel_2", uiOutput("sa_ui_placeholder2")),
+    # tabPanel("Choices: Version 1: CE (By mode)", value = "sa_panel_2", uiOutput("sa_ui_placeholder2")),
     
     # =========== Part 2: Stated Adaptation (SA) - OLD ===========
-    tabPanel("Choices: Version 2: CE (by stage)", value = "sa_panel_3", uiOutput("sa_ui_placeholder3")),
+    tabPanel("Choices: Version 1: CE with discrete use categories", value = "sa_panel_3", uiOutput("sa_ui_placeholder3")),
     
     # =========== Part 2: Stated Adaptation (SA) - Placeholder ===========
-    tabPanel("Choices: Version 3: Menu by slider", value = "sa_panel_4", uiOutput("sa_ui_placeholder4")),
+    tabPanel("Choices: Version 2: CE with sliders", value = "sa_panel_4", uiOutput("sa_ui_placeholder4")),
 
     # =========== Part 3: MENU BASED ===========
-    tabPanel("Choices: Version 3B: Revised menu with sliders", value = "sa_panel_5", uiOutput("sa_ui_placeholder5")),
+    tabPanel("Choices: Version 3: V2 transposed", value = "sa_panel_5", uiOutput("sa_ui_placeholder5")),
     
     # =========== Part 3B: MENU BASED ===========
-    tabPanel("Choices: Version 5: Different Menu", value = "sa_panel_6", uiOutput("sa_ui_placeholder6")),
+    # tabPanel("Choices: Version 4: Different Menu", value = "sa_panel_6", uiOutput("sa_ui_placeholder6")),
     
   )
 )
