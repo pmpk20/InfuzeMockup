@@ -446,7 +446,7 @@ fluidPage(
               bsCollapsePanel(
                 title = "No household Vehicle",
                 value = "car0_panel",
-                selectInput("car0_Commute", "How do you get to work?", choices = c("Active travel (walking / cycling)", "Public transport", "Car-sharing")),
+                selectInput("car0_Commute", "How do you get to work?", choices = c("Walking", "Cycling", "Public transport", "Car-sharing")),
                 selectInput("car0_PayForPT", "How do you pay for public transport?", choices = c("Pay as you go", "Daily tickets", "Weekly/Monthly pass")),
                 selectInput("car0_CarClubNear", "Do you have a car-club near you?", choices = c("Yes", "No")),
                 selectInput("car0_CarClubMember", "Do you have a car-club membership?", choices = c("Yes", "No"))
