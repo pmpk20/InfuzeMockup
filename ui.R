@@ -57,13 +57,12 @@ fluidPage(
       "Landing page + welcome",
       value = "welcome_panel",
       div(class = "welcome-text",
-          h3("Help us shape the future of travel in Leeds!"),
-          h4("This is a survey mockup that does not store any data :) ")
+          h3("Help us shape the future of travel in Leeds!")
       ),
       
       # --- NEW: GitHub Callout Box ---
       div(class = "github-callout",
-          h5("This is an open-source project by Dr Peter King"),
+          h5("This is a survey mockup that does not store any data"),
           p("You can explore, download, or contribute to the code on GitHub.", style = "margin-bottom: 15px;"),
           tags$a(href = "https://github.com/pmpk20/InfuzeMockup",
                  target = "_blank", # Opens in a new tab
@@ -88,65 +87,107 @@ fluidPage(
     ),
     
     # =========== STEP 1A: ABOUT YOU ===========
+    
+    # =========== STEP 1A: ABOUT YOU ===========
     tabPanel(
       "Step 1: Screeners",
       value = "Step_1A_Screeners",
       h3("About You"),
       p("These questions help us understand how travel choices differ between different groups of people. All responses are anonymous."),
-      
-      div(class = "ethics-note",
-          p("TODO: Change survey logic to screen out <18, no licence, "),
-          hr(),
-          p("NOTE: We may use more socioeconomic questions, this is just a placeholder")
-      ),
       hr(),
-      selectInput("gender", 
-                  label = "How would you describe your gender?",
-                  width = "50%",
+      
+      selectInput("gender", "How would you describe your gender?", width = "50%",
                   choices = c("Male", "Female", "In another way", "Prefer not to say")),
       
-      selectInput("age_bracket", 
-                  "How old are you?", 
-                  width = "50%",
+      selectInput("age_bracket", "How old are you?", width = "50%",
                   choices = c("18-24", "25-34", "35-44", "45-54", "55-64", "65+")),
-
-      selectInput("drivers_licence", 
-                  "Do you currently hold a full valid UK driving licence?", 
-                  width = "50%",
+      
+      selectInput("drivers_licence", "Do you currently hold a full valid UK driving licence?", width = "50%",
                   choices = c("Yes", "No")),
       
-      selectInput("education", 
-                  "Please select the highest level of education that you have completed:", 
-                  width = "50%",
-                  choices = c(
-                    "No qualifications",
-                    "1 - 4 Levels / CSEs / GCSEs, NVQ Level 1",
-                    "5 + O Levels / CSEs / GCSEs, NVQ Level 2, AS Levels, Higher Diploma, Diploma Apprenticeship",
-                    "2 + A Levels, NVQ Level 3, BTEC National Diploma",
-                    "Degree, Higher Degree, NVQ level 4-5, BTEC Higher Level, professional qualifications (e.g. teaching, nursing, accountancy)",
-                    "Doctoral degree or equivalent.",
-                    "Other qualifications (vocational/work related, foreign qualifications or level unknown)")),
-                    
-      selectInput("Income", 
-                  "Please select the bracket that represents your total (before tax) monthly household income:", 
-                  width = "50%",
-                  choices = c(
-      "£0 to £1, 000",
-      "£1, 001 to £1, 500",
-      "£1, 501 to £2, 000",
-      "£2, 001 to £2, 500",
-      "£2, 501 to £3, 000",
-      "£3, 001 to £3, 500",
-      "£3, 501 to £4, 000",
-      "£4, 001 to £6, 000",
-      "£6, 001 or more",
-      "Prefer not to say.")),
-
+      conditionalPanel(
+        condition = "input.drivers_licence == 'No'",
+        selectInput("licence_intent", "Do you intend to get a driving licence in the next 12 months?",
+                    width = "40%",
+                    choices = c("Yes", "No"), selected = character(0))
+      ),
       
+      # --- NEW ABILITY QUESTIONS ---
+      selectInput("pt_access", "Is there a bus stop or train station within a 10-minute walk of your home?",
+                  width = "50%", choices = c("Yes", "No", "I don't know")),
+      
+      selectInput("at_ability", "Are you physically able to walk or cycle for a 15-minute journey?",
+                  width = "50%", choices = c("Yes, both", "Walking only", "Cycling only", "No, neither")),
+      # --- END NEW QUESTIONS ---
+      
+      selectInput("education", "Please select the highest level of education that you have completed:", width = "50%",
+                  choices = c("No qualifications", "1 - 4 Levels / CSEs / GCSEs, NVQ Level 1", "5 + O Levels / CSEs / GCSEs, NVQ Level 2, AS Levels, Higher Diploma, Diploma Apprenticeship", "2 + A Levels, NVQ Level 3, BTEC National Diploma", "Degree, Higher Degree, NVQ level 4-5, BTEC Higher Level, professional qualifications (e.g. teaching, nursing, accountancy)", "Doctoral degree or equivalent.", "Other qualifications (vocational/work related, foreign qualifications or level unknown)")),
+      
+      selectInput("Income", "Please select the bracket that represents your total (before tax) monthly household income:", width = "50%",
+                  choices = c("£0 to £1,000", "£1,001 to £1,500", "£1,501 to £2,000", "£2,001 to £2,500", "£2,501 to £3,000", "£3,001 to £3,500", "£3,501 to £4,000", "£4,001 to £6,000", "£6,001 or more", "Prefer not to say.")),
       
       hr(),
       actionButton("From1ATo1B_Button", "Continue ->", class = "btn-primary")
     ),
+    # tabPanel(
+    #   "Step 1: Screeners",
+    #   value = "Step_1A_Screeners",
+    #   h3("About You"),
+    #   p("These questions help us understand how travel choices differ between different groups of people. All responses are anonymous."),
+    #   
+    #   div(class = "ethics-note",
+    #       p("TODO: Change survey logic to screen out <18, no licence, "),
+    #       hr(),
+    #       p("NOTE: We may use more socioeconomic questions, this is just a placeholder")
+    #   ),
+    #   hr(),
+    #   selectInput("gender", 
+    #               label = "How would you describe your gender?",
+    #               width = "50%",
+    #               choices = c("Male", "Female", "In another way", "Prefer not to say")),
+    #   
+    #   selectInput("age_bracket", 
+    #               "How old are you?", 
+    #               width = "50%",
+    #               choices = c("18-24", "25-34", "35-44", "45-54", "55-64", "65+")),
+    # 
+    #   selectInput("drivers_licence", 
+    #               "Do you currently hold a full valid UK driving licence?", 
+    #               width = "50%",
+    #               choices = c("Yes", "No")),
+    #   
+    #   selectInput("education", 
+    #               "Please select the highest level of education that you have completed:", 
+    #               width = "50%",
+    #               choices = c(
+    #                 "No qualifications",
+    #                 "1 - 4 Levels / CSEs / GCSEs, NVQ Level 1",
+    #                 "5 + O Levels / CSEs / GCSEs, NVQ Level 2, AS Levels, Higher Diploma, Diploma Apprenticeship",
+    #                 "2 + A Levels, NVQ Level 3, BTEC National Diploma",
+    #                 "Degree, Higher Degree, NVQ level 4-5, BTEC Higher Level, professional qualifications (e.g. teaching, nursing, accountancy)",
+    #                 "Doctoral degree or equivalent.",
+    #                 "Other qualifications (vocational/work related, foreign qualifications or level unknown)")),
+    #                 
+    #   selectInput("Income", 
+    #               "Please select the bracket that represents your total (before tax) monthly household income:", 
+    #               width = "50%",
+    #               choices = c(
+    #   "£0 to £1, 000",
+    #   "£1, 001 to £1, 500",
+    #   "£1, 501 to £2, 000",
+    #   "£2, 001 to £2, 500",
+    #   "£2, 501 to £3, 000",
+    #   "£3, 001 to £3, 500",
+    #   "£3, 501 to £4, 000",
+    #   "£4, 001 to £6, 000",
+    #   "£6, 001 or more",
+    #   "Prefer not to say.")),
+    # 
+    #   
+    #   
+    #   hr(),
+    #   actionButton("From1ATo1B_Button", "Continue ->", class = "btn-primary")
+    # ),
     
     
     
@@ -338,127 +379,109 @@ fluidPage(
     tabPanel(
       "Step 2: Your Household's Vehicles",
       value = "rp1_panel",
-      sidebarLayout(
-        sidebarPanel(
-          h4("Vehicle Ownership"),
-          p("Please answer these questions about any vehicles that your household owns or has long-term access to."),
-          selectInput(
-            "num_cars", 
-            width = "50%",
-            label = "1. How many vehicles (cars, vans, motorbikes) does your household currently have?",
-            choices = c("0", "1", "2", "3", "4+"),
-            selected = "1"
-          ),
-          
-          selectInput(
-            "num_cars_intend", 
-            width = "50%",
-            label = "2. Do you intend to acquire/remove a new household vehicle in the next year?",
-            choices = c("Remove 1 vehicle", "No change", "Add 1 vehicle"),
-            selected = "1"
+      
+      h3("Your Household's Vehicles"),
+      p("Please answer these questions about any vehicles that your household currently owns or has long-term access to."),
+      hr(),
+      
+      h4("Step 1: Current Vehicle Count"),
+      selectInput("num_cars", "How many vehicles (cars, vans, motorbikes) does your household currently have?", 
+                  choices = c("0", "1", "2", "3", "4+"), 
+                  selected = "0", width = "400px"),
+      hr(),
+      
+      h4("Step 2: Vehicle Details & Current Use"),
+      
+      conditionalPanel(
+        condition = "input.num_cars != '0'",
+        p("Please provide details for the vehicle(s) below, including how you currently use them.")
+      ),
+      
+      # --- VEHICLE PANELS UPDATED WITH RP TRIP ALLOCATION ---
+      
+      # Vehicle 1
+      conditionalPanel(condition = "input.num_cars != '0'", bsCollapse(id = "car1_collapse", open = "car1_panel", bsCollapsePanel(title = "Main (Most-Used) Household Vehicle", value = "car1_panel", 
+                                                                                                                                  selectInput("car1_body_type", "Vehicle Body Type:", choices = c("Hatchback", "Saloon", "Estate", "SUV / 4x4", "MPV", "Coupe / Sports car", "Van", "Motorbike / Scooter")),
+                                                                                                                                  selectInput("car1_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid", "Other Hybrid")),
+                                                                                                                                  selectInput("car1_age_year", "Vehicle Age (Registration Year):", choices = c("2022 or newer", "2018 - 2021", "2013 - 2017", "2008 - 2012", "2007 or older")),
+                                                                                                                                  selectInput("car1_parking", "Where is this vehicle normally parked overnight?", choices = c("On a private driveway or in a garage", "On the street (designated bay)", "On the street (no designated bay)", "Private car park")),
+                                                                                                                                  hr(style="border-top: 1px solid #eee;"),
+                                                                                                                                  h5("Current Weekly Use of this Vehicle"),
+                                                                                                                                  radioButtons("car1_work_trips_rp", "Trips to work:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
+                                                                                                                                  radioButtons("car1_leisure_trips_rp", "Leisure trips:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE)
+      ))),
+      
+      # Vehicle 2
+      conditionalPanel(condition = "input.num_cars == '2' || input.num_cars == '3' || input.num_cars == '4+'", bsCollapse(id = "car2_collapse", bsCollapsePanel(title = "Second Most-Used Household Vehicle", value = "car2_panel", 
+                                                                                                                                                                selectInput("car2_body_type", "Vehicle Body Type:", choices = c("Hatchback", "Saloon", "Estate", "SUV / 4x4", "MPV", "Coupe / Sports car", "Van", "Motorbike / Scooter")),
+                                                                                                                                                                selectInput("car2_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid", "Other Hybrid")),
+                                                                                                                                                                selectInput("car2_age_year", "Vehicle Age (Registration Year):", choices = c("2022 or newer", "2018 - 2021", "2013 - 2017", "2008 - 2012", "2007 or older")),
+                                                                                                                                                                selectInput("car2_parking", "Where is this vehicle normally parked overnight?", choices = c("On a private driveway or in a garage", "On the street (designated bay)", "On the street (no designated bay)", "Private car park")),
+                                                                                                                                                                hr(style="border-top: 1px solid #eee;"),
+                                                                                                                                                                h5("Current Weekly Use of this Vehicle"),
+                                                                                                                                                                radioButtons("car2_work_trips_rp", "Trips to work:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
+                                                                                                                                                                radioButtons("car2_leisure_trips_rp", "Leisure trips:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE)
+      ))),
+      
+      # Vehicle 3
+      conditionalPanel(condition = "input.num_cars == '3' || input.num_cars == '4+'", bsCollapse(id = "car3_collapse", bsCollapsePanel(title = "Third Most-Used Household Vehicle", value = "car3_panel", 
+                                                                                                                                       selectInput("car3_body_type", "Vehicle Body Type:", choices = c("Hatchback", "Saloon", "Estate", "SUV / 4x4", "MPV", "Coupe / Sports car", "Van", "Motorbike / Scooter")),
+                                                                                                                                       selectInput("car3_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid", "Other Hybrid")),
+                                                                                                                                       selectInput("car3_age_year", "Vehicle Age (Registration Year):", choices = c("2022 or newer", "2018 - 2021", "2013 - 2017", "2008 - 2012", "2007 or older")),
+                                                                                                                                       selectInput("car3_parking", "Where is this vehicle normally parked overnight?", choices = c("On a private driveway or in a garage", "On the street (designated bay)", "On the street (no designated bay)", "Private car park")),
+                                                                                                                                       hr(style="border-top: 1px solid #eee;"),
+                                                                                                                                       h5("Current Weekly Use of this Vehicle"),
+                                                                                                                                       radioButtons("car3_work_trips_rp", "Trips to work:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
+                                                                                                                                       radioButtons("car3_leisure_trips_rp", "Leisure trips:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE)
+      ))),
+      
+      # Vehicle 4
+      conditionalPanel(condition = "input.num_cars == '4+'", bsCollapse(id = "car4_collapse", bsCollapsePanel(title = "Fourth Most-Used Household Vehicle", value = "car4_panel", 
+                                                                                                              selectInput("car4_body_type", "Vehicle Body Type:", choices = c("Hatchback", "Saloon", "Estate", "SUV / 4x4", "MPV", "Coupe / Sports car", "Van", "Motorbike / Scooter")),
+                                                                                                              selectInput("car4_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid", "Other Hybrid")),
+                                                                                                              selectInput("car4_age_year", "Vehicle Age (Registration Year):", choices = c("2022 or newer", "2018 - 2021", "2013 - 2017", "2008 - 2012", "2007 or older")),
+                                                                                                              selectInput("car4_parking", "Where is this vehicle normally parked overnight?", choices = c("On a private driveway or in a garage", "On the street (designated bay)", "On the street (no designated bay)", "Private car park")),
+                                                                                                              hr(style="border-top: 1px solid #eee;"),
+                                                                                                              h5("Current Weekly Use of this Vehicle"),
+                                                                                                              radioButtons("car4_work_trips_rp", "Trips to work:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
+                                                                                                              radioButtons("car4_leisure_trips_rp", "Leisure trips:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE)
+      ))),
+      
+      conditionalPanel(
+        condition = "input.num_cars == '0'",
+        p("As your household does not have a vehicle, please answer the following about how you typically travel."),
+        conditionalPanel(
+          condition = "input.drivers_licence == 'Yes'",
+          wellPanel(
+            h5("Travel without a private car (with licence)"),
+            selectInput("car0_Commute_licence", "For most of your journeys, how do you travel?", width = "400px",
+                        choices = c("Public transport", "Car club/Car sharing", "Ride-hailing (e.g. Uber, taxi)", "Car passenger (friend, family, etc.)", "Cycling", "Walking", "Demand-responsive transport")),
+            hr(style="border-top: 1px solid #eee;"),
+            h5("Current Weekly Use of this Mode"),
+            radioButtons("car0_work_trips_rp", "Trips to work:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
+            radioButtons("car0_leisure_trips_rp", "Leisure trips:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE)
           )
-          
         ),
-        mainPanel(
-          h3("Details of Your Vehicle(s)"),
-          p("Please provide details for up to your four most-used vehicles. You can collapse each box by clicking on the header text."),
-          
-          # Vehicle 1
-          conditionalPanel(
-            condition = "input.num_cars != '0'",
-            bsCollapse(
-              id = "car1_collapse",
-              open = "car1_panel",
-              bsCollapsePanel(
-                title = "Main (Most-Used) Household Vehicle",
-                value = "car1_panel",
-                selectInput("car1_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
-                selectInput("car1_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
-                selectInput("car1_mileage", "Approx. Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+")),
-                selectInput("car1_age", "How long have you owned this vehicle?", choices = c("<1 year", "1-2 years", "More than 2 years")),
-                selectInput("car1_purpose", "What would you say is the primary way you use this vehicle?", 
-                            choices = c("Work commuting", "Leisure/Recreation", "Shopping/Errands", "Family transport", "Mixed use"))
-              )
-            )
-          ),
-          
-          # Vehicle 2
-          conditionalPanel(
-            condition = "input.num_cars == '2' || input.num_cars == '3' || input.num_cars == '4+'",
-            bsCollapse(
-              id = "car2_collapse",
-              bsCollapsePanel(
-                title = "Second Most-Used Household Vehicle",
-                value = "car2_panel",
-                selectInput("car2_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
-                selectInput("car2_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
-                selectInput("car2_mileage", "Approx. Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+")),
-                selectInput("car2_age", "How long have you owned this vehicle?", choices = c("<1 year", "1-2 years", "More than 2 years")),
-                selectInput("car2_purpose", "What would you say is the primary way you use this vehicle?", 
-                            choices = c("Work commuting", "Leisure/Recreation", "Shopping/Errands", "Family transport", "Mixed use"))
-              )
-            )
-          ),
-          
-          # Vehicle 3
-          conditionalPanel(
-            condition = "input.num_cars == '3' || input.num_cars == '4+'",
-            bsCollapse(
-              id = "car3_collapse",
-              bsCollapsePanel(
-                title = "Third Most-Used Household Vehicle",
-                value = "car3_panel",
-                selectInput("car3_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
-                selectInput("car3_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
-                selectInput("car3_mileage", "Approx. Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+")),
-                selectInput("car3_age", "How long have you owned this vehicle?", choices = c("<1 year", "1-2 years", "More than 2 years")),
-                selectInput("car3_purpose", "What would you say is the primary way you use this vehicle?", 
-                            choices = c("Work commuting", "Leisure/Recreation", "Shopping/Errands", "Family transport", "Mixed use"))
-              )
-            )
-          ),
-          
-          # Vehicle 4
-          conditionalPanel(
-            condition = "input.num_cars == '4+'",
-            bsCollapse(
-              id = "car4_collapse",
-              bsCollapsePanel(
-                title = "Fourth Most-Used Household Vehicle",
-                value = "car4_panel",
-                selectInput("car4_type", "Vehicle Type:", choices = c("Car", "Van", "Motorbike")),
-                selectInput("car4_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid")),
-                selectInput("car4_mileage", "Approx. Annual Mileage (miles):", choices = c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+")),
-                selectInput("car4_age", "How long have you owned this vehicle?", choices = c("<1 year", "1-2 years", "More than 2 years")),
-                selectInput("car4_purpose", "What would you say is the primary way you use this vehicle?", 
-                            choices = c("Work commuting", "Leisure/Recreation", "Shopping/Errands", "Family transport", "Mixed use"))
-              )
-            )
-          ),
-          
-          
-          
-          conditionalPanel(
-            condition = "input.num_cars == '0'",
-            bsCollapse(
-              id = "car0_collapse",
-              open = "car0_panel",
-              bsCollapsePanel(
-                title = "No household Vehicle",
-                value = "car0_panel",
-                selectInput("car0_Commute", "How do you get to work?", choices = c("Walking", "Cycling", "Public transport", "Car-sharing")),
-                selectInput("car0_PayForPT", "How do you pay for public transport?", choices = c("Pay as you go", "Daily tickets", "Weekly/Monthly pass")),
-                selectInput("car0_CarClubNear", "Do you have a car-club near you?", choices = c("Yes", "No")),
-                selectInput("car0_CarClubMember", "Do you have a car-club membership?", choices = c("Yes", "No"))
-
-              )
-            )
-          ),
-          
-          hr(),
-          actionButton("to_rp2_button", "Continue ->", class = "btn-primary")
+        conditionalPanel(
+          condition = "input.drivers_licence == 'No'",
+          wellPanel(
+            h5("Travel without a private car (without licence)"),
+            selectInput("car0_Commute_no_licence", "For most of your journeys, how do you travel?", width = "400px",
+                        choices = c("Public transport", "Ride-hailing (e.g. Uber, taxi)", "Car passenger (friend, family, etc.)", "Cycling", "Walking", "Demand-responsive transport")),
+            hr(style="border-top: 1px solid #eee;"),
+            h5("Current Weekly Use of this Mode"),
+            radioButtons("car0_no_licence_work_trips_rp", "Trips to work:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
+            radioButtons("car0_no_licence_leisure_trips_rp", "Leisure trips:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE)
+          )
         )
-      )
+      ),
+      hr(),
+      
+      h4("Step 3: Future Intentions"),
+      selectInput("num_cars_intend", "Do you intend to acquire or dispose of a household vehicle in the next 12 months?",
+                  choices = c("Dispose of one or more vehicles", "No change", "Acquire one or more vehicles"), selected = "No change", width = "400px"),
+      hr(),
+      actionButton("to_rp2_button", "Continue ->", class = "btn-primary")
     ),
     
     # # =========== Part 1b: Revealed Preferences (Shared Mobility & PT) ===========
