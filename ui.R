@@ -85,7 +85,7 @@ fluidPage(
                           tags$span(style="margin-left: 15px; font-size: 1.1em;", "This survey takes approximately 10-15 minutes to complete.")),
                   
                   tags$li(style="display: flex; align-items: center; margin-bottom: 10px;", icon("user-shield", "fa-2x"), 
-                          tags$span(style="margin-left: 15px; font-size: 1.1em;", "All your responses are completely anonymous and will be used for academic research purposes only.")),
+                          tags$span(style="margin-left: 15px; font-size: 1.1em;", "Your responses are anonymous and not stored so play around. ")),
                   
                   tags$li(style="display: flex; align-items: center;", icon("check-circle", "fa-2x"), 
                           tags$span(style="margin-left: 15px; font-size: 1.1em;", "Participation is voluntary, and you can withdraw at any time.")),
@@ -130,6 +130,9 @@ fluidPage(
       selectInput("household_children", "How many children under the age of 16 live in your household?",
                   width = "50%", choices = c("0", "1", "2", "3 or more")),
       
+      selectInput("household_pets", "How many pets live in your household?",
+                  width = "50%", choices = c("0", "1", "2", "3 or more")),
+      
       selectInput("drivers_licence", "Do you currently hold a full valid UK driving licence?", width = "50%",
                   choices = c("Yes", "No")),
       
@@ -140,14 +143,24 @@ fluidPage(
                     choices = c("Yes", "No"), selected = character(0))
       ),
       
-      # --- NEW ABILITY QUESTIONS ---
       selectInput("pt_access", "Is there a bus stop or train station within a 10-minute walk of your home?",
                   width = "50%", choices = c("Yes", "No", "I don't know")),
       
+      selectInput("pt_quality", "How would you rate the quality (e.g., frequency, reliability) of the public transport near your home?",
+                    width = "50%", choices = c("Very good", "Good", "Acceptable", "Poor", "Very poor")
+      ),
+      
       selectInput("at_ability", "Are you physically able to walk or cycle for a 15-minute journey?",
                   width = "50%", choices = c("Yes, both", "Walking only", "Cycling only", "No, neither")),
-      # --- END NEW QUESTIONS ---
       
+      selectInput("commute_distance", "Roughly how far is your one-way journey to your primary place of work or study?",
+                  width = "50%",
+                  choices = c("Under 1 mile",
+                              "1-3 miles",
+                              "3-5 miles",
+                              "5-10 miles",
+                              "More than 10 miles")),
+
       selectInput("education", "Please select the highest level of education that you have completed:", width = "50%",
                   choices = c("No qualifications", "1 - 4 Levels / CSEs / GCSEs, NVQ Level 1", "5 + O Levels / CSEs / GCSEs, NVQ Level 2, AS Levels, Higher Diploma, Diploma Apprenticeship", "2 + A Levels, NVQ Level 3, BTEC National Diploma", "Degree, Higher Degree, NVQ level 4-5, BTEC Higher Level, professional qualifications (e.g. teaching, nursing, accountancy)", "Doctoral degree or equivalent.", "Other qualifications (vocational/work related, foreign qualifications or level unknown)")),
       
@@ -186,6 +199,10 @@ fluidPage(
       # Vehicle 1
       conditionalPanel(condition = "input.num_cars != '0'", bsCollapse(id = "car1_collapse", open = "car1_panel", bsCollapsePanel(title = "Main (Most-Used) Household Vehicle", value = "car1_panel", 
                                                                                                                                   selectInput("car1_body_type", "Vehicle Body Type:", choices = c("Hatchback", "Saloon", "Estate", "SUV / 4x4", "MPV", "Coupe / Sports car", "Van", "Motorbike / Scooter")),
+                                                                                                                                  selectInput(paste0("car1_ownership"), "How is this vehicle owned/accessed?",
+                                                                                                                                              choices = c("Owned outright (no finance)", "Owned with a loan/HP", 
+                                                                                                                                                          "Personal Contract Purchase (PCP) or Lease", 
+                                                                                                                                                          "Company car", "Long-term rental/subscription", "Other")),
                                                                                                                                   selectInput("car1_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid", "Other Hybrid")),
                                                                                                                                   selectInput("car1_age_year", "Vehicle Age (Registration Year):", choices = c("2022 or newer", "2018 - 2021", "2013 - 2017", "2008 - 2012", "2007 or older")),
                                                                                                                                   selectInput("car1_parking", "Where is this vehicle normally parked overnight?", choices = c("On a private driveway or in a garage", "On the street (designated bay)", "On the street (no designated bay)", "Private car park")),
@@ -210,6 +227,10 @@ fluidPage(
       # Vehicle 2
       conditionalPanel(condition = "input.num_cars == '2' || input.num_cars == '3' || input.num_cars == '4+'", bsCollapse(id = "car2_collapse", bsCollapsePanel(title = "Second Most-Used Household Vehicle", value = "car2_panel", 
                                                                                                                                                                 selectInput("car2_body_type", "Vehicle Body Type:", choices = c("Hatchback", "Saloon", "Estate", "SUV / 4x4", "MPV", "Coupe / Sports car", "Van", "Motorbike / Scooter")),
+                                                                                                                                                                selectInput(paste0("car2_ownership"), "How is this vehicle owned/accessed?",
+                                                                                                                                                                            choices = c("Owned outright (no finance)", "Owned with a loan/HP", 
+                                                                                                                                                                                        "Personal Contract Purchase (PCP) or Lease", 
+                                                                                                                                                                                        "Company car", "Long-term rental/subscription", "Other")),
                                                                                                                                                                 selectInput("car2_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid", "Other Hybrid")),
                                                                                                                                                                 selectInput("car2_age_year", "Vehicle Age (Registration Year):", choices = c("2022 or newer", "2018 - 2021", "2013 - 2017", "2008 - 2012", "2007 or older")),
                                                                                                                                                                 selectInput("car2_parking", "Where is this vehicle normally parked overnight?", choices = c("On a private driveway or in a garage", "On the street (designated bay)", "On the street (no designated bay)", "Private car park")),
@@ -231,6 +252,10 @@ fluidPage(
       # Vehicle 3
       conditionalPanel(condition = "input.num_cars == '3' || input.num_cars == '4+'", bsCollapse(id = "car3_collapse", bsCollapsePanel(title = "Third Most-Used Household Vehicle", value = "car3_panel", 
                                                                                                                                        selectInput("car3_body_type", "Vehicle Body Type:", choices = c("Hatchback", "Saloon", "Estate", "SUV / 4x4", "MPV", "Coupe / Sports car", "Van", "Motorbike / Scooter")),
+                                                                                                                                       selectInput(paste0("car3_ownership"), "How is this vehicle owned/accessed?",
+                                                                                                                                                   choices = c("Owned outright (no finance)", "Owned with a loan/HP", 
+                                                                                                                                                               "Personal Contract Purchase (PCP) or Lease", 
+                                                                                                                                                               "Company car", "Long-term rental/subscription", "Other")),
                                                                                                                                        selectInput("car3_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid", "Other Hybrid")),
                                                                                                                                        selectInput("car3_age_year", "Vehicle Age (Registration Year):", choices = c("2022 or newer", "2018 - 2021", "2013 - 2017", "2008 - 2012", "2007 or older")),
                                                                                                                                        selectInput("car3_parking", "Where is this vehicle normally parked overnight?", choices = c("On a private driveway or in a garage", "On the street (designated bay)", "On the street (no designated bay)", "Private car park")),
@@ -251,6 +276,10 @@ fluidPage(
       # Vehicle 4
       conditionalPanel(condition = "input.num_cars == '4+'", bsCollapse(id = "car4_collapse", bsCollapsePanel(title = "Fourth Most-Used Household Vehicle", value = "car4_panel", 
                                                                                                               selectInput("car4_body_type", "Vehicle Body Type:", choices = c("Hatchback", "Saloon", "Estate", "SUV / 4x4", "MPV", "Coupe / Sports car", "Van", "Motorbike / Scooter")),
+                                                                                                              selectInput(paste0("car4_ownership"), "How is this vehicle owned/accessed?",
+                                                                                                                          choices = c("Owned outright (no finance)", "Owned with a loan/HP", 
+                                                                                                                                      "Personal Contract Purchase (PCP) or Lease", 
+                                                                                                                                      "Company car", "Long-term rental/subscription", "Other")),
                                                                                                               selectInput("car4_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid", "Other Hybrid")),
                                                                                                               selectInput("car4_age_year", "Vehicle Age (Registration Year):", choices = c("2022 or newer", "2018 - 2021", "2013 - 2017", "2008 - 2012", "2007 or older")),
                                                                                                               selectInput("car4_parking", "Where is this vehicle normally parked overnight?", choices = c("On a private driveway or in a garage", "On the street (designated bay)", "On the street (no designated bay)", "Private car park")),
@@ -316,6 +345,14 @@ fluidPage(
       h4("Step 3: Future Intentions"),
       selectInput("num_cars_intend", "Do you intend to acquire or dispose of a household vehicle in the next 12 months?",
                   choices = c("Dispose of one or more vehicles", "No change", "Acquire one or more vehicles"), selected = "No change", width = "400px"),
+      
+      selectInput("work_parking", "Which of these best describes the parking situation at your primary place of work or study?",
+                  width = "50%",
+                  choices = c("I do not commute to a regular workplace/place of study",
+                              "Guaranteed and free parking is provided",
+                              "Parking is available, but not guaranteed or I have to pay",
+                              "No parking is available")),
+      
       hr(),
       actionButton("to_rp2_button", "Continue ->", class = "btn-primary")
     ),

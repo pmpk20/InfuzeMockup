@@ -25,90 +25,46 @@ function(input, output, session) {
   
   # ========= Version 1: Preamble & Core Logic =========
   
-  # ==============================================================================
+  # ============================================================================== #
   # MODULAR CHOICE TASK SYSTEM - COMPLETE REFACTOR
-  # ==============================================================================
+  # ============================================================================== #
   
   # Constants
-  TRIP_PURPOSES <- c(
+  TRIP_PURPOSES_V1 <- c( # The longer labels for the radio button version
     "How many trips to work would you take using this mode?",
     "Leisure/visiting family and friends, recreation, etc."
   )
-  
-  TRIP_LEVEL_MAP <- c(
-    "None" = 0, 
-    "For a few trips" = 0.25, 
-    "For around half" = 0.5, 
-    "For most trips" = 0.75, 
-    "For all trips" = 1
+  TRIP_PURPOSES_V2 <- c( # The more concise labels for the slider version
+    "Work Trips",
+    "Leisure Trips"
   )
-  
-  # Helper for default values if an input is NULL
+  TRIP_LEVEL_MAP <- c("None" = 0, "For a few trips" = 0.25, "For around half" = 0.5, "For most trips" = 0.75, "For all trips" = 1)
   `%||%` <- function(a, b) if (is.null(a)) b else a
   
   # ==============================================================================
-  # 0. WIZARD STATE MANAGEMENT & NAVIGATION LOGIC
-  # ==============================================================================
-  
-  # Reactive value to control the multi-page wizard interface
-  current_task_index <- reactiveVal(1)
-  
-  # Wizard navigation buttons are now top-level observers
-  observeEvent(input$next_task_button, {
-    current_task_index(current_task_index() + 1)
-  })
-  observeEvent(input$prev_task_button, {
-    current_task_index(current_task_index() - 1)
-  })
-  
-  # Wizard reset logic is now a single top-level observer
-  observe({
-    input$num_cars; input$at_ability; input$drivers_licence; input$licence_intent; input$household_children
-    current_task_index(1)
-  })
-  
-  
-  # ==============================================================================
-  # 1. USER PROFILE & SEGMENTATION
+  # 1. SHARED LOGIC: USER PROFILE, MODE DEFINITIONS, AND TASK GENERATION
+  # (Used by both Version 1 and Version 2)
   # ==============================================================================
   
   create_user_profile <- function(input) {
     list(
-      # Core attributes
       has_licence = input$drivers_licence == 'Yes',
       licence_intent = !is.null(input$licence_intent) && input$licence_intent == 'Yes',
       num_cars = parse_num_cars(input$num_cars),
-      
-      # --- NEW: Household composition ---
       has_children = !is.null(input$household_children) && input$household_children != "0",
-      
-      # Mobility capabilities
-      can_walk = input$at_ability %in% c('Yes, both', 'Walking only'),
-      can_cycle = input$at_ability %in% c('Yes, both', 'Cycling only'),
       has_mobility = input$at_ability != 'No, neither',
       has_pt_access = input$pt_access == 'Yes',
-      
-      # Current travel (for zero-car households)
-      current_mode = if (input$num_cars == '0') {
-        if (input$drivers_licence == 'Yes') input$car0_Commute_licence else input$car0_Commute_no_licence
-      } else NULL,
-      
-      # Derived segments
+      commute_distance_miles = switch(input$commute_distance, "Under 1 mile"=0.5, "1-3 miles"=2, "3-5 miles"=4, "5-10 miles"=7.5, "More than 10 miles"=15, 0),
+      current_mode = if (input$num_cars == '0') { if (input$drivers_licence == 'Yes') input$car0_Commute_licence else input$car0_Commute_no_licence } else NULL,
       is_zero_car = input$num_cars == '0',
       segment = determine_user_segment(input)
     )
   }
-  
-  # --- MODIFIED: Segments now account for children ---
   determine_user_segment <- function(input) {
-    has_licence <- input$drivers_licence == 'Yes'
-    licence_intent <- !is.null(input$licence_intent) && input$licence_intent == 'Yes'
-    has_mobility <- input$at_ability != 'No, neither'
-    has_vehicles <- input$num_cars != '0'
+    has_licence <- input$drivers_licence == 'Yes'; licence_intent <- !is.null(input$licence_intent) && input$licence_intent == 'Yes'
+    has_mobility <- input$at_ability != 'No, neither'; has_vehicles <- input$num_cars != '0'
     has_children <- !is.null(input$household_children) && input$household_children != "0"
-    
     base_segment <- 'unknown'
-    
     if (has_vehicles) {
       if (has_licence && has_mobility) base_segment <- 'car_owner_full_mobility'
       else if (has_licence && !has_mobility) base_segment <- 'car_owner_no_mobility'
@@ -119,387 +75,147 @@ function(input, output, session) {
       else if ((has_licence || licence_intent) && !has_mobility) base_segment <- 'zero_car_club_pt'
       else if ((has_licence || licence_intent) && has_mobility) base_segment <- 'zero_car_full_options'
     }
-    
-    # Append family status to create a more granular segment
-    if (has_children) {
-      paste0(base_segment, "_family")
-    } else {
-      base_segment
-    }
+    if (has_children) paste0(base_segment, "_family") else base_segment
   }
-  
-  parse_num_cars <- function(num_cars_input) {
-    if (is.null(num_cars_input) || num_cars_input == '0') return(0)
-    as.integer(gsub("\\+", "", num_cars_input))
-  }
+  parse_num_cars <- function(num_cars_input) { if (is.null(num_cars_input) || num_cars_input == '0') return(0); as.integer(gsub("\\+", "", num_cars_input)) }
   parse_cost_bracket <- function(bracket_string) {
-    if (is.null(bracket_string) || grepl("Don't know", bracket_string)) return(NA)
-    numbers <- as.numeric(unlist(regmatches(bracket_string, gregexpr("[0-9,]+", bracket_string))))
-    if (length(numbers) == 0) return(0)
-    if (grepl("Under|£0 -", bracket_string)) return(mean(c(0, numbers)))
-    if (grepl("Over|More than", bracket_string)) return(numbers * 1.2)
-    if (length(numbers) == 1) return(numbers)
-    return(mean(numbers))
+    if (is.null(bracket_string) || grepl("Don't know", bracket_string)) return(NA); numbers <- as.numeric(unlist(regmatches(bracket_string, gregexpr("[0-9,]+", bracket_string)))); if (length(numbers) == 0) return(0); if (grepl("Under|£0 -", bracket_string)) return(mean(c(0, numbers))); if (grepl("Over|More than", bracket_string)) return(numbers * 1.2); if (length(numbers) == 1) return(numbers); return(mean(numbers))
   }
   
-  # ==============================================================================
-  # 2. MODE DEFINITIONS & CREATION
-  # ==============================================================================
   create_status_quo_mode <- function(profile, input) {
     if (profile$is_zero_car) {
       cost_input <- if (profile$has_licence) input$car0_cost_rp else input$car0_no_licence_cost_rp
       work_trips <- if (profile$has_licence) input$car0_work_trips_rp else input$car0_no_licence_work_trips_rp
       leisure_trips <- if (profile$has_licence) input$car0_leisure_trips_rp else input$car0_no_licence_leisure_trips_rp
-      list(
-        id = "status_quo", title = "Your Current Main Mode", icon = "walking", type = "current",
-        description = paste("Primarily using:", profile$current_mode),
-        access = "Current Access", availability = "Current Availability", 
-        cost_val = parse_cost_bracket(cost_input),
-        cost_text = paste(cost_input, "(your reported spend)"),
-        rp_trips = c(work_trips %||% "None", leisure_trips %||% "None")
-      )
+      list(id = "status_quo", title = "Your current main mode of travel", icon = "walking", type = "current", description = paste("You primarily travel by:", profile$current_mode), access = "Your current level of access", availability = "Your current travel reliability", cost_val = parse_cost_bracket(cost_input), cost_text = paste(cost_input, "(your reported spend)"), rp_trips = c(work_trips %||% "None", leisure_trips %||% "None"))
     } else { NULL }
   }
   create_owned_vehicle_mode <- function(vehicle_index, input) {
-    cost_input_id <- paste0("car", vehicle_index, "_cost_rp")
-    cost_val_numeric <- parse_cost_bracket(input[[cost_input_id]])
-    cost_text <- if (is.na(cost_val_numeric)) "Not Provided" else paste0("£", round(cost_val_numeric))
-    body_type <- input[[paste0("car", vehicle_index, "_body_type")]] %||% "Not provided"
-    fuel <- input[[paste0("car", vehicle_index, "_fuel")]] %||% "Not provided"
-    age_year <- input[[paste0("car", vehicle_index, "_age_year")]] %||% "Not provided"
-    parking <- input[[paste0("car", vehicle_index, "_parking")]] %||% "Not provided"
-    description <- paste0("Body Type: ", body_type, "; Fuel: ", fuel, "; Age: ", age_year, "; Parking: ", parking)
-    list(
-      id = paste0("owned_", vehicle_index), title = "Your currently owned vehicle", icon = "car-side", type = "current",
-      description = description, access = "Immediate, 24/7 at home", availability = "Very High (99% success rate)",
-      vehicle_index = vehicle_index, cost_val = cost_val_numeric, cost_text = cost_text
-    )
+    cost_input_id <- paste0("car", vehicle_index, "_cost_rp"); cost_val_numeric <- parse_cost_bracket(input[[cost_input_id]]); cost_text <- if (is.na(cost_val_numeric)) "Not Provided" else paste0("£", round(cost_val_numeric))
+    body_type <- input[[paste0("car", vehicle_index, "_body_type")]] %||% "Not provided"; fuel <- input[[paste0("car", vehicle_index, "_fuel")]] %||% "Not provided"; age_year <- input[[paste0("car", vehicle_index, "_age_year")]] %||% "Not provided"; parking <- input[[paste0("car", vehicle_index, "_parking")]] %||% "Not provided"
+    description <- paste0("A ", age_year, " ", fuel, " ", body_type, " that is normally parked ", tolower(parking), ".")
+    list(id = paste0("owned_", vehicle_index), title = "Your currently owned vehicle", icon = "car-side", type = "current", description = description, access = "Immediate, 24/7 at your home", availability = "Very reliable (available for >99 in 100 trips)", vehicle_index = vehicle_index, cost_val = cost_val_numeric, cost_text = cost_text)
   }
-  
-  # --- MODIFIED: Alternatives now depend on the presence of children ---
   create_alternative_modes <- function(profile) {
     modes <- list()
-    
-    # Car Club (for licence holders - now has two versions)
     if (profile$has_licence || profile$licence_intent) {
       if (profile$has_children) {
-        # Family-specific car club
-        modes$car_club_family <- list(
-          id = "car_club_family", title = "Family Car Club Membership", icon = "car", type = "alternative",
-          description = "Access to larger vehicles (MPVs/SUVs) with guaranteed ISOFIX points and available child seats.",
-          access = "5-10 min walk", availability = "High (98% success)", cost_val = 75, cost_text = "£75"
-        )
+        modes$car_club_family <- list(id = "car_club_family", title = "Membership to a Family Car Club", icon = "car", type = "alternative", description = "Provides access to larger vehicles (MPVs/SUVs) with guaranteed child seat (ISOFIX) points.", access = "5-10 minute walk to a vehicle", availability = "Reliable (available for ~95 in 100 trips)", cost_val = 75, cost_text = "£75")
       } else {
-        # Standard car club
-        modes$car_club_standard <- list(
-          id = "car_club_standard", title = "Enhanced Car Club Membership", icon = "car-side", type = "alternative",
-          description = "Full membership to a dedicated car club, typically with small-medium sized cars.",
-          access = "5-10 min walk", availability = "High (98% success)", cost_val = 60, cost_text = "£60"
-        )
+        modes$car_club_standard <- list(id = "car_club_standard", title = "Membership to a Neighbourhood Car Club", icon = "car-side", type = "alternative", description = "Provides access to a range of small-medium sized cars parked in your local area.", access = "5-10 minute walk to a vehicle", availability = "Reliable (available for ~95 in 100 trips)", cost_val = 60, cost_text = "£60")
       }
     }
-    
-    # Public Transport
-    if (profile$has_pt_access) {
-      modes$public_transport <- list(
-        id = "public_transport", title = "Yorkshire Pass", icon = "bus-alt", type = "alternative",
-        description = "Monthly pass for all local public transport (bus, tram, train).",
-        access = "Within a 5 min walk", availability = "High (95% success)", cost_val = 75, cost_text = "£75"
-      )
-    }
-    
-    # Active Travel (for mobile users)
-    if (profile$has_mobility) {
-      modes$active_travel <- list(
-        id = "active_travel", title = "Active Travel Network", icon = "bicycle", type = "alternative", 
-        description = "Enhanced cycling and walking infrastructure with priority lanes.",
-        access = "Immediate", availability = "Very High (weather dependent)", cost_val = 15, cost_text = "£15"
-      )
-    }
-    
-    # Demand Responsive Transport
-    if (!profile$has_licence && !profile$licence_intent && !profile$has_mobility) {
-      modes$drt <- list(
-        id = "drt", title = "Demand Responsive Transport", icon = "shuttle-van", type = "alternative",
-        description = "On-demand accessible transport service for door-to-door journeys.",
-        access = "Phone/app booking", availability = "High (advance booking)", cost_val = 45, cost_text = "£45"
-      )
-    }
+    if (profile$has_pt_access) { modes$public_transport <- list(id = "public_transport", title = "Yorkshire Pass for Public Transport", icon = "bus-alt", type = "alternative", description = "A monthly pass providing unlimited travel on all local buses, trams, and trains within West Yorkshire.", access = "Within a 5 minute walk", availability = "Reliable (available for ~95 in 100 trips)", cost_val = 75, cost_text = "£75") }
+    # --- POINT 6: Active travel now depends on commute distance ---
+    if (profile$has_mobility && profile$commute_distance_miles > 0 && profile$commute_distance_miles <= 5) { modes$active_travel <- list(id = "active_travel", title = "Active Travel (Walk/Cycle)", icon = "bicycle", type = "alternative",  description = "Assumes safe, dedicated, and well-lit walking and cycling routes are available for your key journeys.", access = "Immediate, from your front door", availability = "Very reliable (weather dependent)", cost_val = 15, cost_text = "£15 (for maintenance)") }
+    if (!profile$has_licence && !profile$licence_intent && !profile$has_mobility) { modes$drt <- list(id = "drt", title = "Demand Responsive Transport", icon = "shuttle-van", type = "alternative", description = "An on-demand, accessible shuttle bus service for door-to-door journeys, booked via an app.", access = "Booked via phone/app", availability = "Reliable (with advance booking)", cost_val = 45, cost_text = "£45") }
     return(modes)
   }
-  
-  
-  # ==============================================================================
-  # 3. SCENARIO CONFIGURATION & MODE SELECTION
-  # ==============================================================================
-  # ... (This entire section is unchanged)
   get_modes_for_choice <- function(profile, input) {
-    current_modes <- list()
-    if (profile$is_zero_car) {
-      status_quo <- create_status_quo_mode(profile, input)
-      if (!is.null(status_quo)) current_modes$status_quo <- status_quo
-    } else {
-      for (i in seq_len(min(profile$num_cars, 4))) {
-        current_modes[[paste0("owned_", i)]] <- create_owned_vehicle_mode(i, input)
-      }
-    }
-    return(list(current = current_modes, alternatives = create_alternative_modes(profile)))
+    current_modes <- list(); if (profile$is_zero_car) { status_quo <- create_status_quo_mode(profile, input); if (!is.null(status_quo)) current_modes$status_quo <- status_quo } else { for (i in seq_len(min(profile$num_cars, 4))) { current_modes[[paste0("owned_", i)]] <- create_owned_vehicle_mode(i, input) } }; return(list(current = current_modes, alternatives = create_alternative_modes(profile)))
   }
   get_choice_tasks <- function(profile, modes) {
-    tasks <- list()
-    if (profile$is_zero_car) {
-      status_quo <- modes$current$status_quo
-      for (alt_id in names(modes$alternatives)) {
-        tasks[[alt_id]] <- list(current = list(status_quo), alternative = modes$alternatives[[alt_id]])
-      }
-    } else {
-      for (alt_id in names(modes$alternatives)) {
-        tasks[[alt_id]] <- list(current = modes$current, alternative = modes$alternatives[[alt_id]])
-      }
-    }
-    return(tasks)
+    tasks <- list(); if (profile$is_zero_car) { status_quo <- modes$current$status_quo; for (alt_id in names(modes$alternatives)) { tasks[[alt_id]] <- list(current = list(status_quo), alternative = modes$alternatives[[alt_id]]) } } else { for (alt_id in names(modes$alternatives)) { tasks[[alt_id]] <- list(current = modes$current, alternative = modes$alternatives[[alt_id]]) } }; return(tasks)
+  }
+  get_scenario_text <- function(profile, tasks) {
+    alt_ids <- sapply(tasks, function(t) t$alternative$id); base_text <- "A new 'Leeds Travel' app provides seamless, integrated booking and payment for all transport services."
+    service_descs <- c(); if (any(grepl("car_club", alt_ids))) service_descs <- c(service_descs, "neighbourhood car clubs"); if ("public_transport" %in% alt_ids) service_descs <- c(service_descs, "24/7 public transport"); if ("active_travel" %in% alt_ids) service_descs <- c(service_descs, "priority lanes for cycling and walking"); if ("drt" %in% alt_ids) service_descs <- c(service_descs, "on-demand shuttle services")
+    if (length(service_descs) > 0) { services_text <- paste(service_descs, collapse = ", ", sep=""); services_text <- sub(",([^,]*)$", " and\\1", services_text); return(paste(base_text, "This includes", services_text, "across the city.")) }; return(base_text)
   }
   
-  # ==============================================================================
-  # 4. UI GENERATION FUNCTIONS  
-  # ==============================================================================
+
+  # == VERSION 1: RADIO BUTTON WIZARD (for sa_panel_3)
+
   
-  create_task_table <- function(task_num, current_modes, alternative_mode, trip_purposes, input) {
-    
-    tags$table(
-      class = "table",
-      tags$thead(
-        tags$tr(
-          tags$th("Attribute", style = "width:15%;"),
-          lapply(current_modes, function(m) {
-            tags$th(class = "owned-col-header", style = "position:relative;",
-                    tags$div(style = "display:flex; align-items:center; justify-content:center;",
-                             icon(m$icon), tags$strong(m$title, style = "font-size:0.9em; margin-left:6px;")),
-                    tags$div(style = "position:absolute; top:2px; right:6px; background:#ffd700; color:#333; padding:1px 6px; border-radius:3px; font-size:0.65em; font-weight:700;", "OWNED")
-            )
-          }),
-          tags$th(class = if (alternative_mode$id == "public_transport") "pt-col-header" else "alt-col-header",
-                  tags$div(style = "display:flex; align-items:center; justify-content:center;",
-                           icon(alternative_mode$icon),
-                           tags$strong(alternative_mode$title, style = "font-size:0.9em; margin-left:6px;")))
-        )
-      ),
-      tags$tbody(
-        # --- FIX 3: ADDED DESCRIPTION SUB-HEADER ---
-        tags$tr(tags$th(div(strong("Description"), tags$small(style="font-weight:normal;", "Details of the available travel options."))), 
-                lapply(current_modes, function(m) tags$td(class = "owned-col-cell", m$description)),
-                tags$td(class = if(alternative_mode$id == "public_transport") "pt-col-cell" else "alt-col-cell", alternative_mode$description)),
-        tags$tr(tags$th(div(strong("Access"), tags$small(style="font-weight:normal;", "Walking time to access"))), 
-                lapply(current_modes, function(m) tags$td(class = "owned-col-cell", m$access)),
-                tags$td(class = if(alternative_mode$id == "public_transport") "pt-col-cell" else "alt-col-cell", alternative_mode$access)),
-        tags$tr(tags$th(div(strong("Availability"), tags$small(style="font-weight:normal;", "Chance service is ready"))),
-                lapply(current_modes, function(m) tags$td(class = "owned-col-cell", m$availability)),
-                tags$td(class = if(alternative_mode$id == "public_transport") "pt-col-cell" else "alt-col-cell", alternative_mode$availability)),
-        tags$tr(tags$th("Fixed Monthly Cost"),
-                lapply(current_modes, function(m) tags$td(class = "owned-col-cell", tags$strong(m$cost_text))),
-                tags$td(class = if(alternative_mode$id == "public_transport") "pt-col-cell" else "alt-col-cell", tags$strong(alternative_mode$cost_text))),
-        
-        lapply(seq_along(trip_purposes), function(p_idx) {
-          purpose <- trip_purposes[[p_idx]]; clean_purpose <- gsub("[^A-Za-z0-9]", "_", purpose)
-          tags$tr(
-            tags$th(purpose, style = "font-weight:normal; font-style:italic;"),
-            lapply(current_modes, function(m) {
-              input_id <- paste0("task", task_num, "_", m$id, "_trips_", clean_purpose)
-              
-              # --- FIX 2: CORRECTED RP DEFAULT LOGIC ---
-              default_sel <- if (m$type == "current" && !is.null(m$rp_trips)) {
-                # This path is for zero-car households
-                m$rp_trips[[p_idx]]
-              } else if (m$type == "current") {
-                # This path is for car-owning households, directly build the input ID
-                rp_input_id <- paste0("car", m$vehicle_index, "_", if(p_idx == 1) "work" else "leisure", "_trips_rp")
-                input[[rp_input_id]]
-              } else {
-                # Default for alternatives
-                "None"
-              }
-              
-              tags$td(class = "owned-col-cell", radioButtons(input_id, NULL, names(TRIP_LEVEL_MAP), selected = default_sel %||% "None"))
-            }),
-            tags$td(
-              class = if(alternative_mode$id == "public_transport") "pt-col-cell" else "alt-col-cell",
-              radioButtons(paste0("task", task_num, "_", alternative_mode$id, "_trips_", clean_purpose), NULL, names(TRIP_LEVEL_MAP), selected = "None")
-            )
-          )
-        })
-      )
+  # --- V1: Wizard State & Navigation ---
+  current_task_index_v1 <- reactiveVal(1)
+  observeEvent(input$next_task_button_v1, { current_task_index_v1(current_task_index_v1() + 1) })
+  observeEvent(input$prev_task_button_v1, { current_task_index_v1(current_task_index_v1() - 1) })
+  observe({ input$num_cars; input$at_ability; input$drivers_licence; input$licence_intent; input$household_children; current_task_index_v1(1) })
+  
+  # --- V1: UI Generation ---
+  create_task_table_v1 <- function(task_num, current_modes, alternative_mode, trip_purposes, input) {
+    tags$table( class = "table",
+                tags$thead(tags$tr(tags$th("Attribute", style = "width:15%;"), lapply(current_modes, function(m) { tags$th(class = "owned-col-header", style = "position:relative;", tags$div(style = "display:flex; align-items:center; justify-content:center;", icon(m$icon), tags$strong(m$title, style = "font-size:0.9em; margin-left:6px;")), tags$div(style = "position:absolute; top:2px; right:6px; background:#ffd700; color:#333; padding:1px 6px; border-radius:3px; font-size:0.65em; font-weight:700;", "OWNED")) }), tags$th(class = if (alternative_mode$id == "public_transport") "pt-col-header" else "alt-col-header", tags$div(style = "display:flex; align-items:center; justify-content:center;", icon(alternative_mode$icon), tags$strong(alternative_mode$title, style = "font-size:0.9em; margin-left:6px;"))))),
+                tags$tbody(
+                  tags$tr(tags$th(div(strong("Description"), tags$small(style="font-weight:normal;", "Details of the available travel options."))), lapply(current_modes, function(m) tags$td(class = "owned-col-cell", m$description)), tags$td(class = if(alternative_mode$id == "public_transport") "pt-col-cell" else "alt-col-cell", alternative_mode$description)),
+                  tags$tr(tags$th(div(strong("Access"), tags$small(style="font-weight:normal;", "Walking time to access"))), lapply(current_modes, function(m) tags$td(class = "owned-col-cell", m$access)), tags$td(class = if(alternative_mode$id == "public_transport") "pt-col-cell" else "alt-col-cell", alternative_mode$access)),
+                  tags$tr(tags$th(div(strong("Availability"), tags$small(style="font-weight:normal;", "Chance service is ready"))), lapply(current_modes, function(m) tags$td(class = "owned-col-cell", m$availability)), tags$td(class = if(alternative_mode$id == "public_transport") "pt-col-cell" else "alt-col-cell", alternative_mode$availability)),
+                  tags$tr(tags$th("Fixed Monthly Cost"), lapply(current_modes, function(m) tags$td(class = "owned-col-cell", tags$strong(m$cost_text))), tags$td(class = if(alternative_mode$id == "public_transport") "pt-col-cell" else "alt-col-cell", tags$strong(alternative_mode$cost_text))),
+                  lapply(seq_along(trip_purposes), function(p_idx) {
+                    purpose <- trip_purposes[[p_idx]]; clean_purpose <- gsub("[^A-Za-z0-9]", "_", purpose)
+                    tags$tr(tags$th(purpose, style = "font-weight:normal; font-style:italic;"),
+                            lapply(current_modes, function(m) {
+                              input_id <- paste0("task", task_num, "_v1_", m$id, "_trips_", clean_purpose)
+                              default_sel <- if (m$type == "current" && !is.null(m$rp_trips)) { m$rp_trips[[p_idx]] } else if (m$type == "current") { rp_input_id <- paste0("car", m$vehicle_index, "_", if(p_idx == 1) "work" else "leisure", "_trips_rp"); input[[rp_input_id]] } else { "None" }
+                              tags$td(class = "owned-col-cell", radioButtons(input_id, NULL, names(TRIP_LEVEL_MAP), selected = default_sel %||% "None"))
+                            }),
+                            tags$td(class = if(alternative_mode$id == "public_transport") "pt-col-cell" else "alt-col-cell", radioButtons(paste0("task", task_num, "_v1_", alternative_mode$id, "_trips_", clean_purpose), NULL, names(TRIP_LEVEL_MAP), selected = "None")))
+                  })
+                )
     )
   }
-  
-  # ==============================================================================
-  # 5. MAIN UI GENERATION & WIZARD LOGIC
-  # ==============================================================================
-  
   output$sa_ui_placeholder3 <- renderUI({
-    req(input$num_cars, input$drivers_licence, input$at_ability)
+    req(input$num_cars, input$drivers_licence, input$at_ability, input$household_children, input$commute_distance)
+    profile <- create_user_profile(input); modes <- get_modes_for_choice(profile, input); tasks <- get_choice_tasks(profile, modes)
+    if (length(tasks) == 0) { return(tagList(p("Based on your previous answers, there are no new transport alternatives to show.", style = "text-align:center; font-style:italic; margin: 30px;"), div(style = "text-align:center;", actionButton("finish_v1_button", "Continue", class = "btn-primary btn-lg")))) }
+    task_idx <- current_task_index_v1(); num_tasks <- length(tasks); current_task <- tasks[[task_idx]]
     
-    profile <- create_user_profile(input)
-    modes <- get_modes_for_choice(profile, input)
-    tasks <- get_choice_tasks(profile, modes)
+    # --- FIX: Re-introduced the necessary CSS styling for Version 1 ---
+    css_styles_v1 <- HTML(".survey-content-wrapper { max-width: 1100px; margin: 0 auto; } .table { table-layout:fixed; border-collapse: separate; border-spacing: 0; } .table th, .table td { padding:8px; word-break:break-word; vertical-align: middle; border: 1px solid #ddd; border-top-width: 0; border-left-width: 0; } .table th:first-child, .table td:first-child { border-left-width: 1px; } .table tr:first-child th, .table tr:first-child td { border-top-width: 1px; } .owned-col-header { background: linear-gradient(135deg,#28a745 0%,#1e7e34 100%) !important; color:white; text-align:center; } .owned-col-cell { background-color:#eafaf1; } .alt-col-header { background: linear-gradient(135deg,#007bff 0%,#0056b3 100%) !important; color:white; text-align:center; } .alt-col-cell { background-color:#f8f9fa; } .pt-col-header { background: linear-gradient(135deg, #ffc107 0%, #d39e00 100%) !important; color: #212529; text-align:center; } .pt-col-cell { background-color: #fff9e6; } .combined-info-box { padding:14px; background: linear-gradient(135deg,#e3f2fd 0%,#f8f9fa 100%); border-left:5px solid #007bff; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.06); } .summary-pill { display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border-radius:8px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,0.06); } .summary-pill .label { font-weight:700; color:#495057; font-size:0.85em; } .summary-pill .value { font-size:14px; font-weight:700; }")
     
-    if (length(tasks) == 0) {
-      return(tagList(
-        p("Based on your previous answers, there are no new transport alternatives to show.", style = "text-align:center; font-style:italic; margin: 30px;"),
-        div(style = "text-align:center;", actionButton("to_sa_button4", "Continue", class = "btn-primary btn-lg"))
-      ))
-    }
+    scenario_box <- div(style = "margin-top:12px; font-size:0.9em; color:#333; padding:10px; border-radius:6px; background: linear-gradient(90deg, #ffffff, #f7f9fb); border:1px solid #e1e7ef;", h5(tags$u("Imagine that in the next 3 years:")), p(get_scenario_text(profile, tasks)))
+    instructions_content <- div(style = "flex:1; min-width:320px;", h5(tags$u("Instructions")), tags$ul(style="font-size: 1.05em; padding-left: 20px;", tags$li("The table below compares your current travel with a new alternative."), tags$li("Your task is to show how you would divide your household's trips between them."), tags$li("As you make selections, the summary box will update live."), tags$li("Use the following guide for trip allocation:"), tags$ul(style="padding-left: 20px; font-style: italic; color: #555;", tags$li(strong("For a few trips"), " means roughly 1-2 trips per week."), tags$li(strong("For around half"), " means roughly 3-5 trips per week."), tags$li(strong("For most trips"), " means the majority of trips for that purpose.")), tags$li("Once you are happy with your trip allocation, please press the 'Next' button.")), scenario_box)
     
-    task_idx <- current_task_index()
-    num_tasks <- length(tasks)
-    current_task <- tasks[[task_idx]]
-    
-    # Common CSS
-    css_styles <- HTML("
-    .survey-content-wrapper { max-width: 1100px; margin: 0 auto; }
-    .table { table-layout:fixed; border-collapse: separate; border-spacing: 0; }
-    .table th, .table td { padding:8px; word-break:break-word; vertical-align: middle; border: 1px solid #ddd; border-top-width: 0; border-left-width: 0; }
-    .table th:first-child, .table td:first-child { border-left-width: 1px; }
-    .table tr:first-child th, .table tr:first-child td { border-top-width: 1px; }
-    .owned-col-header { background: linear-gradient(135deg,#28a745 0%,#1e7e34 100%) !important; color:white; text-align:center; }
-    .owned-col-cell { background-color:#eafaf1; }
-    .alt-col-header { background: linear-gradient(135deg,#007bff 0%,#0056b3 100%) !important; color:white; text-align:center; }
-    .alt-col-cell { background-color:#f8f9fa; }
-    .pt-col-header { background: linear-gradient(135deg, #ffc107 0%, #d39e00 100%) !important; color: #212529; text-align:center; }
-    .pt-col-cell { background-color: #fff9e6; }
-    .combined-info-box { padding:14px; background: linear-gradient(135deg,#e3f2fd 0%,#f8f9fa 100%); border-left:5px solid #007bff; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
-    .summary-pill { display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border-radius:8px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
-    .summary-pill .label { font-weight:700; color:#495057; font-size:0.85em; }
-    .summary-pill .value { font-size:14px; font-weight:700; }
-  ")
-    # Instructions content
-    instructions_content <- div(
-      style = "flex:1; min-width:320px;",
-      h5(tags$u("Instructions")),
-      p("Please read the following carefully:", style="font-size: 1.1em;"),
-      tags$ul(
-        style="font-size: 1.05em; padding-left: 20px;",
-        tags$li("The table below compares your current travel with new alternatives."),
-        tags$li("Your task is to show how you would divide your household's trips between them."),
-        tags$li("As you make selections, the summary box will update live."),
-        tags$li("Use the following guide for trip allocation:"),
-        tags$ul(
-          style="padding-left: 20px; font-style: italic; color: #555;",
-          tags$li(strong("For a few trips"), " means roughly 1-2 trips per week."),
-          tags$li(strong("For around half"), " means roughly 3-5 trips per week."),
-          tags$li(strong("For most trips"), " means the majority of trips for that purpose.")
-        ),
-        tags$li("Once you are happy with your trip allocation, please press the 'Continue' button.")
-      ),
-      # Imagine box
-      div(
-        style = "margin-top:12px; font-size:0.9em; color:#333; padding:10px; border-radius:6px; background: linear-gradient(90deg, #ffffff, #f7f9fb); border:1px solid #e1e7ef;",
-        tags$strong("Imagine that in the next 3 years:", style = "display:block; margin-bottom:6px; font-weight:700;"),
-        tags$div("A new 'Leeds Travel' app provides seamless access to 24/7 public transport and local car clubs.")
-      )
+    summary_pills <- div(style = "width:340px; flex-shrink:0;",
+                         # Pointing to the correct _v1 outputs
+                         div(class = "summary-pill", style="background: linear-gradient(90deg,#e9f7ef,#fff); border:1px solid #d4edda;", div(class = "label", "Work Trip Allocation"), div(class = "value", textOutput("trips_work_summary_v1", inline = TRUE))),
+                         div(class = "summary-pill", style="background: linear-gradient(90deg,#fff4e6,#fff); border:1px solid #ffeeba;", div(class = "label", "Leisure Trip Allocation"), div(class = "value", textOutput("trips_leisure_summary_v1", inline = TRUE))),
+                         div(class = "summary-pill", style="background: linear-gradient(90deg,#fff,#fff); border:1px solid #dee2e6;", div(class = "label", "Est. Monthly Cost"), div(class = "value", textOutput("cost_summary_val_v1", inline = TRUE)))
     )
     
-    # Summary pills
-    summary_pills <- div(
-      style = "width:340px; flex-shrink:0;",
-      div(class = "summary-pill", style = "background: linear-gradient(90deg,#e9f7ef,#fff); border:1px solid #d4edda;", 
-          div(class = "label", "Work trips"), 
-          div(class = "value", textOutput("trips_work_summary", inline = TRUE))),
-      div(class = "summary-pill", style = "background: linear-gradient(90deg,#fff4e6,#fff); border:1px solid #ffeeba;", 
-          div(class = "label", "Leisure trips"), 
-          div(class = "value", textOutput("trips_leisure_summary", inline = TRUE))),
-      div(class = "summary-pill", style = "background: linear-gradient(90deg,#fff,#fff); border:1px solid #dee2e6;", 
-          div(class = "label", "Est. Monthly Cost"), 
-          div(class = "value", textOutput("cost_summary_val", inline = TRUE)))
-    )
+    table_content <- create_task_table_v1(task_idx, current_task$current, current_task$alternative, TRIP_PURPOSES_V1, input)
     
+    navigation_ui <- div(style = "margin-top: 20px; display: flex; justify-content: space-between; align-items: center;",
+                         if (task_idx > 1) { actionButton("prev_task_button_v1", "Back", class = "btn-default btn-lg") } else { div() },
+                         tags$strong(paste0("Task ", task_idx, " of ", num_tasks)),
+                         if (task_idx < num_tasks) { actionButton("next_task_button_v1", "Next", class = "btn-primary btn-lg") } else { actionButton("finish_v1_button", "Finish and Continue", class = "btn-success btn-lg") })
     
-    table_content <- create_task_table(task_idx, current_task$current, current_task$alternative, TRIP_PURPOSES, input)
-    
-    navigation_ui <- div(
-      style = "margin-top: 20px; display: flex; justify-content: space-between; align-items: center;",
-      if (task_idx > 1) {
-        actionButton("prev_task_button", "Back", class = "btn-default btn-lg")
-      } else { div() },
-      tags$strong(paste0("Task ", task_idx, " of ", num_tasks)),
-      if (task_idx < num_tasks) {
-        actionButton("next_task_button", "Next", class = "btn-primary btn-lg")
-      } else {
-        actionButton("to_sa_button4", "Finish and Continue", class = "btn-success btn-lg")
-      }
-    )
-    
+    # The main tagList now includes the css_styles_v1 variable
     tagList(
-      tags$style(css_styles),
-      div(
-        class = "survey-content-wrapper",
-        div(class = "combined-info-box", style = "margin-bottom: 20px; display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start;",
-            instructions_content, summary_pills),
-        table_content,
-        navigation_ui
+      tags$style(css_styles_v1),
+      div(class = "survey-content-wrapper", 
+          div(class = "combined-info-box", style = "margin-bottom: 20px; display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start;", 
+              instructions_content, 
+              summary_pills
+          ), 
+          table_content, 
+          navigation_ui
       )
     )
   })
   
-  # ==============================================================================
-  # 6. COST/TRIP COMPUTATION (ADAPTED FOR WIZARD)
-  # ==============================================================================
-  # ... (This entire section is unchanged)
-  compute_estimates <- reactive({
-    req(input$num_cars, current_task_index())
-    req(input$drivers_licence, input$at_ability)
-    if (input$num_cars == '0' && input$drivers_licence == 'No') {
-      req(input$licence_intent)
-    }
-    profile <- create_user_profile(input)
-    modes <- get_modes_for_choice(profile, input)
-    tasks <- get_choice_tasks(profile, modes)
-    if (length(tasks) == 0) return(list(est_cost = "N/A", work_text = "N/A", leisure_text = "N/A"))
-    task_idx <- current_task_index()
-    current_task <- tasks[[task_idx]]
-    modes_in_this_task <- c(current_task$current, list(current_task$alternative))
-    all_mode_props <- list(); all_mode_costs <- list(); mode_names <- list()
+  
+  # --- V1: Calculation Logic ---
+  compute_estimates_v1 <- reactive({
+    req(input$num_cars, current_task_index_v1(), input$household_children, input$commute_distance); req(input$drivers_licence, input$at_ability)
+    profile <- create_user_profile(input); modes <- get_modes_for_choice(profile, input); tasks <- get_choice_tasks(profile, modes); if (length(tasks) == 0) return(list(est_cost = "N/A", work_text = "N/A", leisure_text = "N/A"))
+    task_idx <- current_task_index_v1(); current_task <- tasks[[task_idx]]; modes_in_this_task <- c(current_task$current, list(current_task$alternative)); all_mode_props <- list(); all_mode_costs <- list(); mode_names <- list()
     for (mode in modes_in_this_task) {
       mode_id <- mode$id
-      props <- sapply(TRIP_PURPOSES, function(purpose) {
-        clean_purpose <- gsub("[^A-Za-z0-9]", "_", purpose)
-        input_id <- paste0("task", task_idx, "_", mode_id, "_trips_", clean_purpose)
-        sel <- input[[input_id]]
-        if (!is.null(sel) && sel %in% names(TRIP_LEVEL_MAP)) TRIP_LEVEL_MAP[[sel]] else 0
-      })
-      all_mode_props[[mode_id]] <- props
-      all_mode_costs[[mode_id]] <- mode$cost_val %||% 0
-      mode_names[[mode_id]] <- if (mode$type == "current" && profile$is_zero_car) mode$title else if (mode$type == "current") paste("Vehicle", mode$vehicle_index) else mode$title
+      props <- sapply(TRIP_PURPOSES_V1, function(purpose) { clean_purpose <- gsub("[^A-Za-z0-9]", "_", purpose); input_id <- paste0("task", task_idx, "_v1_", mode_id, "_trips_", clean_purpose); sel <- input[[input_id]]; if (!is.null(sel) && sel %in% names(TRIP_LEVEL_MAP)) TRIP_LEVEL_MAP[[sel]] else 0 })
+      all_mode_props[[mode_id]] <- props; all_mode_costs[[mode_id]] <- mode$cost_val %||% 0; mode_names[[mode_id]] <- if (mode$type == "current" && profile$is_zero_car) mode$title else if (mode$type == "current") paste("Vehicle", mode$vehicle_index) else mode$title
     }
     if (length(all_mode_props) == 0) return(list(est_cost = "£0", work_text = "Awaiting input...", leisure_text = "Awaiting input..."))
-    mode_props_matrix <- do.call(cbind, all_mode_props)
-    mode_avgs <- rowMeans(mode_props_matrix, na.rm = TRUE)
-    mode_costs <- unlist(all_mode_costs[colnames(mode_props_matrix)])
-    est_monthly_cost <- sum(mode_costs * mode_avgs, na.rm = TRUE)
+    mode_props_matrix <- do.call(cbind, all_mode_props); mode_avgs <- rowMeans(mode_props_matrix, na.rm = TRUE); mode_costs <- unlist(all_mode_costs[colnames(mode_props_matrix)]); est_monthly_cost <- sum(mode_costs * mode_avgs, na.rm = TRUE)
     make_breakdown_text <- function(purpose_idx) {
-      props_vec <- mode_props_matrix[purpose_idx, ]
-      active_mask <- props_vec > 0
-      if (!any(active_mask)) return("No trips selected")
-      active_names <- unlist(mode_names)[active_mask]
-      active_vals <- props_vec[active_mask]
-      total_prop <- sum(active_vals); if (total_prop == 0) return("No trips selected")
-      pct <- round(100 * active_vals / total_prop)
-      paste0(paste0(active_names, ": ", pct, "%"), collapse = " | ")
+      props_vec <- mode_props_matrix[purpose_idx, ]; active_mask <- props_vec > 0.001; if (!any(active_mask)) return("No trips selected"); active_names <- unlist(mode_names)[active_mask]; active_vals <- props_vec[active_mask]; total_prop <- sum(active_vals); if (total_prop < 0.001) return("No trips selected"); pct <- round(100 * active_vals / total_prop); final_names <- active_names[pct > 0]; final_pcts <- pct[pct > 0]; if(length(final_names) == 0) return("No trips selected"); paste0(paste0(final_names, ": ", final_pcts, "%"), collapse = " | ")
     }
-    list(
-      est_cost = paste0("£", formatC(round(est_monthly_cost), format = "f", big.mark = ",", digits = 0)),
-      work_text = make_breakdown_text(1),
-      leisure_text = make_breakdown_text(2)
-    )
+    list(est_cost = paste0("£", formatC(round(est_monthly_cost), format = "f", big.mark = ",", digits = 0)), work_text = make_breakdown_text(1), leisure_text = make_breakdown_text(2))
   })
-  
-  # ==============================================================================
-  # 7. RENDER OUTPUTS
-  # ==============================================================================
-  # ... (This entire section is unchanged)
-  output$cost_summary_val <- renderText({ compute_estimates()$est_cost })
-  output$trips_work_summary <- renderText({ compute_estimates()$work_text })
-  output$trips_leisure_summary <- renderText({ compute_estimates()$leisure_text })
-  
+  # --- V1: Render Outputs ---
+  output$cost_summary_val_v1 <- renderText({ compute_estimates_v1()$est_cost }); output$trips_work_summary_v1 <- renderText({ compute_estimates_v1()$work_text }); output$trips_leisure_summary_v1 <- renderText({ compute_estimates_v1()$leisure_text })
+  observeEvent(input$finish_v1_button, {})
   
   # ========= Version 2: Menu by sliders =========
   mode_data <- reactive({
@@ -823,248 +539,94 @@ function(input, output, session) {
   })
   
   # ========= VERSION 3: Menu Builder (REFACTORED) =========
-  # ==============================================================================
-  # ==============================================================================
+  # ============================================================================== #
+  # ============================================================================== #
   # == VERSION 2: SLIDER ALLOCATION WIZARD (for sa_panel_5)
-  # ==============================================================================
-  # ==============================================================================
+  # ============================================================================== #
+  # ============================================================================== #
   
   # --- V2: Wizard State & Navigation ---
   current_task_index_v2 <- reactiveVal(1)
-  
   observeEvent(input$next_task_button_v2, { current_task_index_v2(current_task_index_v2() + 1) })
   observeEvent(input$prev_task_button_v2, { current_task_index_v2(current_task_index_v2() - 1) })
+  observe({ input$num_cars; input$at_ability; input$drivers_licence; input$licence_intent; input$household_children; current_task_index_v2(1) })
   
-  observe({
-    input$num_cars; input$at_ability; input$drivers_licence; input$licence_intent; input$household_children
-    current_task_index_v2(1)
-  })
-  
-  # --- V2: UI Generation Function for the Slider Table ---
+  # --- V2: UI Generation ---
   create_task_table_v2 <- function(task_num, current_modes, alternative_mode, trip_purposes, input) {
-    num_current_modes <- length(current_modes)
-    total_cols <- num_current_modes + 1
+    num_current_modes <- length(current_modes); total_cols <- num_current_modes + 1
     
-    tags$table(
-      class = "table",
-      tags$thead(
-        tags$tr(
-          tags$th("Attribute", style = "width:20%;"),
-          lapply(current_modes, function(m) {
-            tags$th(class = "owned-col-header", style = "position:relative;",
-                    tags$div(style = "display:flex; align-items:center; justify-content:center;", icon(m$icon), tags$strong(m$title, style = "font-size:0.9em; margin-left:6px;")),
-                    tags$div(style = "position:absolute; top:2px; right:6px; background:#ffd700; color:#333; padding:1px 6px; border-radius:3px; font-size:0.65em; font-weight:700;", "OWNED")
-            )
-          }),
-          tags$th(class = if (alternative_mode$id == "public_transport") "pt-col-header" else "alt-col-header",
-                  tags$div(style = "display:flex; align-items:center; justify-content:center;", icon(alternative_mode$icon), tags$strong(alternative_mode$title, style = "font-size:0.9em; margin-left:6px;")))
-        )
-      ),
-      tags$tbody(
-        tags$tr(tags$th(div(strong("Description"), tags$small(style="font-weight:normal;", "Details of the available travel options."))), 
-                lapply(current_modes, function(m) tags$td(class = "owned-col-cell", m$description)),
-                tags$td(class = if(alternative_mode$id == "public_transport") "pt-col-cell" else "alt-col-cell", alternative_mode$description)),
-        tags$tr(tags$th(div(strong("Access"), tags$small(style="font-weight:normal;", "Walking time to access"))), 
-                lapply(current_modes, function(m) tags$td(class = "owned-col-cell", m$access)),
-                tags$td(class = if(alternative_mode$id == "public_transport") "pt-col-cell" else "alt-col-cell", alternative_mode$access)),
-        tags$tr(tags$th(div(strong("Availability"), tags$small(style="font-weight:normal;", "Chance service is ready"))),
-                lapply(current_modes, function(m) tags$td(class = "owned-col-cell", m$availability)),
-                tags$td(class = if(alternative_mode$id == "public_transport") "pt-col-cell" else "alt-col-cell", alternative_mode$availability)),
-        tags$tr(tags$th("Fixed Monthly Cost"),
-                lapply(current_modes, function(m) tags$td(class = "owned-col-cell", tags$strong(m$cost_text))),
-                tags$td(class = if(alternative_mode$id == "public_transport") "pt-col-cell" else "alt-col-cell", tags$strong(alternative_mode$cost_text))),
-        
-        lapply(seq_along(TRIP_PURPOSES), function(p_idx) {
-          purpose <- TRIP_PURPOSES[[p_idx]]
-          clean_purpose <- gsub("[^A-Za-z0-9]", "_", purpose)
-          slider_input_id <- paste0("task", task_num, "_share_v2_", clean_purpose)
-          
-          tagList(
-            tags$tr(class = "allocation-header-row", tags$th(colspan = total_cols + 1, style = "text-align: center; background-color: #f8f9fa; border-top: 2px solid #dee2e6 !important;", tags$strong(paste(purpose, "Allocation")))),
-            tags$tr(
-              tags$td(
-                colspan = total_cols + 1, style = "padding: 10px 20px;",
-                div(style = "display:flex; align-items:center; gap:15px; width:100%;",
-                    tags$span(style = "font-weight:500; text-align:right; flex-basis:150px; flex-shrink:0;", "100% Current Mode(s)"),
-                    div(style = "flex-grow:1;", sliderInput(slider_input_id, label = NULL, min = 0, max = 100, value = 0, step = 5, post = "%")),
-                    tags$span(style = "font-weight:500; text-align:left; flex-basis:150px; flex-shrink:0;", paste("100%", alternative_mode$title))
-                )
-              )
-            )
-          )
-        })
-      )
+    # --- FIX C: Dynamic label for current mode(s) ---
+    current_mode_label <- if (num_current_modes == 1) {
+      # If one mode, use its title (e.g., "Your currently owned vehicle")
+      current_modes[[1]]$title
+    } else {
+      # If multiple cars, use a generic plural
+      "Your Household Vehicles"
+    }
+    
+    tags$table(class = "table",
+               tags$thead(tags$tr(tags$th("Attribute", style = "width:20%;"), lapply(current_modes, function(m) { tags$th(class = "owned-col-header", style = "position:relative;", tags$div(style = "display:flex; align-items:center; justify-content:center;", icon(m$icon), tags$strong(m$title, style = "font-size:0.9em; margin-left:6px;")), tags$div(style = "position:absolute; top:2px; right:6px; background:#ffd700; color:#333; padding:1px 6px; border-radius:3px; font-size:0.65em; font-weight:700;", "OWNED")) }), tags$th(class = if (alternative_mode$id == "public_transport") "pt-col-header" else "alt-col-header", tags$div(style = "display:flex; align-items:center; justify-content:center;", icon(alternative_mode$icon), tags$strong(alternative_mode$title, style = "font-size:0.9em; margin-left:6px;"))))),
+               tags$tbody(
+                 tags$tr(tags$th(div(strong("Description"), tags$small(style="font-weight:normal;", "A summary of each travel option."))), lapply(current_modes, function(m) tags$td(class = "owned-col-cell", m$description)), tags$td(class = if(alternative_mode$id == "public_transport") "pt-col-cell" else "alt-col-cell", alternative_mode$description)),
+                 tags$tr(tags$th(div(strong("Access"), tags$small(style="font-weight:normal;", "Time required to begin your journey."))), lapply(current_modes, function(m) tags$td(class = "owned-col-cell", m$access)), tags$td(class = if(alternative_mode$id == "public_transport") "pt-col-cell" else "alt-col-cell", alternative_mode$access)),
+                 tags$tr(tags$th(div(strong("Availability"), tags$small(style="font-weight:normal;", "Likelihood the service is ready when needed."))), lapply(current_modes, function(m) tags$td(class = "owned-col-cell", m$availability)), tags$td(class = if(alternative_mode$id == "public_transport") "pt-col-cell" else "alt-col-cell", alternative_mode$availability)),
+                 tags$tr(tags$th("Fixed Monthly Cost"), lapply(current_modes, function(m) tags$td(class = "owned-col-cell", tags$strong(m$cost_text))), tags$td(class = if(alternative_mode$id == "public_transport") "pt-col-cell" else "alt-col-cell", tags$strong(alternative_mode$cost_text))),
+                 lapply(seq_along(trip_purposes), function(p_idx) {
+                   purpose <- trip_purposes[[p_idx]]; clean_purpose <- gsub("[^A-Za-z0-9]", "_", purpose); slider_input_id <- paste0("task", task_num, "_share_v2_", clean_purpose)
+                   tagList(
+                     tags$tr(class = "allocation-header-row", tags$th(colspan = total_cols + 1, style = "text-align: center; background-color: #f8f9fa; border-top: 2px solid #dee2e6 !important;", tags$strong(paste(purpose, "Allocation")))),
+                     tags$tr(tags$td(colspan = total_cols + 1, style = "padding: 10px 20px;",
+                                     # --- FIX B: Corrected Flexbox styling for alignment ---
+                                     div(style = "display:flex; align-items:center; gap:15px; width:100%;",
+                                         tags$span(style = "font-weight:500; text-align:right; flex-basis:150px; flex-shrink:0;", paste("100%", current_mode_label)),
+                                         div(style = "flex-grow:1;", sliderInput(slider_input_id, label = NULL, min = 0, max = 100, value = 0, step = 5, post = "%")),
+                                         tags$span(style = "font-weight:500; text-align:left; flex-basis:150px; flex-shrink:0;", paste("100%", alternative_mode$title))
+                                     )
+                     ))
+                   )
+                 })
+               )
     )
   }
-  
-  # --- V2: Main UI Rendering ---
   output$sa_ui_placeholder5 <- renderUI({
-    req(input$num_cars, input$drivers_licence, input$at_ability, input$household_children)
-    profile <- create_user_profile(input)
-    modes <- get_modes_for_choice(profile, input)
-    tasks <- get_choice_tasks(profile, modes)
+    req(input$num_cars, input$drivers_licence, input$at_ability, input$household_children, input$commute_distance)
+    profile <- create_user_profile(input); modes <- get_modes_for_choice(profile, input); tasks <- get_choice_tasks(profile, modes)
+    if (length(tasks) == 0) { return(tagList(p("Based on your previous answers, there are no new transport alternatives to show.", style = "text-align:center; font-style:italic; margin: 30px;"), div(style = "text-align:center;", actionButton("finish_v2_button", "Continue", class = "btn-primary btn-lg")))) }
+    task_idx <- current_task_index_v2(); num_tasks <- length(tasks); current_task <- tasks[[task_idx]]
     
-    if (length(tasks) == 0) {
-      return(tagList(
-        p("Based on your previous answers, there are no new transport alternatives to show.", style = "text-align:center; font-style:italic; margin: 30px;"),
-        div(style = "text-align:center;", actionButton("finish_v2_button", "Continue", class = "btn-primary btn-lg"))
-      ))
-    }
+    css_styles_v2 <- HTML(".survey-content-wrapper { max-width: 1100px; margin: 0 auto; } .table { table-layout:fixed; border-collapse: separate; border-spacing: 0; } .table th, .table td { padding:8px; word-break:break-word; vertical-align: middle; border: 1px solid #ddd; border-top-width: 0; border-left-width: 0; } .table th:first-child, .table td:first-child { border-left-width: 1px; } .table tr:first-child th, .table tr:first-child td { border-top-width: 1px; } .owned-col-header { background: linear-gradient(135deg,#28a745 0%,#1e7e34 100%) !important; color:white; text-align:center; } .owned-col-cell { background-color:#eafaf1; } .alt-col-header { background: linear-gradient(135deg,#007bff 0%,#0056b3 100%) !important; color:white; text-align:center; } .alt-col-cell { background-color:#f8f9fa; } .pt-col-header { background: linear-gradient(135deg, #ffc107 0%, #d39e00 100%) !important; color: #212529; text-align:center; } .pt-col-cell { background-color: #fff9e6; } .combined-info-box { padding:14px; background: linear-gradient(135deg,#e3f2fd 0%,#f8f9fa 100%); border-left:5px solid #007bff; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.06); } .summary-pill { display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border-radius:8px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,0.06); } .summary-pill .label { font-weight:700; color:#495057; font-size:0.85em; } .summary-pill .value { font-size:14px; font-weight:700; } .allocation-header-row th { border-bottom-width: 0 !important; }")
+    scenario_box <- div(style = "margin-top:12px; font-size:0.9em; color:#333; padding:10px; border-radius:6px; background: linear-gradient(90deg, #ffffff, #f7f9fb); border:1px solid #e1e7ef;", h5(tags$u("Imagine that in the next 3 years:")), p(get_scenario_text(profile, tasks)))
+    instructions_content <- div(style = "flex:1; min-width:320px;", h5(tags$u("Instructions")), tags$ul(style="font-size: 1.05em; padding-left: 20px;", tags$li("The table below compares your current travel with a new alternative."), tags$li("Use the slider to show how you would allocate your trips for each purpose."), tags$li("As you make selections, the summary box will update live."), tags$li("Once you are happy with your allocation, please press the 'Next' button.")), scenario_box)
     
-    task_idx <- current_task_index_v2()
-    num_tasks <- length(tasks)
-    current_task <- tasks[[task_idx]]
-    
-    # --- V2 Summary Pills (pointing to _v2 outputs) ---
-    summary_pills <- div(
-      style = "width:340px; flex-shrink:0;",
-      div(class = "summary-pill", style = "background: linear-gradient(90deg,#e9f7ef,#fff); border:1px solid #d4edda;", div(class = "label", "Work trips"), div(class = "value", textOutput("trips_work_summary_v2", inline = TRUE))),
-      div(class = "summary-pill", style = "background: linear-gradient(90deg,#fff4e6,#fff); border:1px solid #ffeeba;", div(class = "label", "Leisure trips"), div(class = "value", textOutput("trips_leisure_summary_v2", inline = TRUE))),
-      div(class = "summary-pill", style = "background: linear-gradient(90deg,#fff,#fff); border:1px solid #dee2e6;", div(class = "label", "Est. Monthly Cost"), div(class = "value", textOutput("cost_summary_val_v2", inline = TRUE)))
+    # --- FIX A: Restored correct summary pill formatting ---
+    summary_pills <- div(style = "width:340px; flex-shrink:0;",
+                         div(class = "summary-pill", style="background: linear-gradient(90deg,#e9f7ef,#fff); border:1px solid #d4edda;", div(class = "label", "Work Trip Allocation"), div(class = "value", textOutput("trips_work_summary_v2", inline = TRUE))),
+                         div(class = "summary-pill", style="background: linear-gradient(90deg,#fff4e6,#fff); border:1px solid #ffeeba;", div(class = "label", "Leisure Trip Allocation"), div(class = "value", textOutput("trips_leisure_summary_v2", inline = TRUE))),
+                         div(class = "summary-pill", style="background: linear-gradient(90deg,#fff,#fff); border:1px solid #dee2e6;", div(class = "label", "Est. Monthly Cost"), div(class = "value", textOutput("cost_summary_val_v2", inline = TRUE)))
     )
     
-    # You can reuse instructions_content and css_styles if they are globally defined in your server file
-    # Common CSS
-    css_styles <- HTML("
-    .survey-content-wrapper { max-width: 1100px; margin: 0 auto; }
-    .table { table-layout:fixed; border-collapse: separate; border-spacing: 0; }
-    .table th, .table td { padding:8px; word-break:break-word; vertical-align: middle; border: 1px solid #ddd; border-top-width: 0; border-left-width: 0; }
-    .table th:first-child, .table td:first-child { border-left-width: 1px; }
-    .table tr:first-child th, .table tr:first-child td { border-top-width: 1px; }
-    .owned-col-header { background: linear-gradient(135deg,#28a745 0%,#1e7e34 100%) !important; color:white; text-align:center; }
-    .owned-col-cell { background-color:#eafaf1; }
-    .alt-col-header { background: linear-gradient(135deg,#007bff 0%,#0056b3 100%) !important; color:white; text-align:center; }
-    .alt-col-cell { background-color:#f8f9fa; }
-    .pt-col-header { background: linear-gradient(135deg, #ffc107 0%, #d39e00 100%) !important; color: #212529; text-align:center; }
-    .pt-col-cell { background-color: #fff9e6; }
-    .combined-info-box { padding:14px; background: linear-gradient(135deg,#e3f2fd 0%,#f8f9fa 100%); border-left:5px solid #007bff; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
-    .summary-pill { display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border-radius:8px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
-    .summary-pill .label { font-weight:700; color:#495057; font-size:0.85em; }
-    .summary-pill .value { font-size:14px; font-weight:700; }
-  ")
-    # Instructions content
-    instructions_content <- div(
-      style = "flex:1; min-width:320px;",
-      h5(tags$u("Instructions")),
-      p("Please read the following carefully:", style="font-size: 1.1em;"),
-      tags$ul(
-        style="font-size: 1.05em; padding-left: 20px;",
-        tags$li("The table below compares your current travel with new alternatives."),
-        tags$li("Your task is to show how you would divide your household's trips between them."),
-        tags$li("As you make selections, the summary box will update live."),
-        tags$li("Use the following guide for trip allocation:"),
-        tags$ul(
-          style="padding-left: 20px; font-style: italic; color: #555;",
-          tags$li(strong("For a few trips"), " means roughly 1-2 trips per week."),
-          tags$li(strong("For around half"), " means roughly 3-5 trips per week."),
-          tags$li(strong("For most trips"), " means the majority of trips for that purpose.")
-        ),
-        tags$li("Once you are happy with your trip allocation, please press the 'Continue' button.")
-      ),
-      # Imagine box
-      div(
-        style = "margin-top:12px; font-size:0.9em; color:#333; padding:10px; border-radius:6px; background: linear-gradient(90deg, #ffffff, #f7f9fb); border:1px solid #e1e7ef;",
-        tags$strong("Imagine that in the next 3 years:", style = "display:block; margin-bottom:6px; font-weight:700;"),
-        tags$div("A new 'Leeds Travel' app provides seamless access to 24/7 public transport and local car clubs.")
-      )
-    )
-    
-    table_content <- create_task_table_v2(task_idx, current_task$current, current_task$alternative, TRIP_PURPOSES, input)
-    
-    # --- V2 Navigation (using _v2 button IDs) ---
-    navigation_ui <- div(
-      style = "margin-top: 20px; display: flex; justify-content: space-between; align-items: center;",
-      if (task_idx > 1) { actionButton("prev_task_button_v2", "Back", class = "btn-default btn-lg") } else { div() },
-      tags$strong(paste0("Task ", task_idx, " of ", num_tasks)),
-      if (task_idx < num_tasks) { actionButton("next_task_button_v2", "Next", class = "btn-primary btn-lg") } else { actionButton("finish_v2_button", "Finish and Continue", class = "btn-success btn-lg") }
-    )
-    
-    tagList(
-      tags$style(css_styles),
-      div(
-        class = "survey-content-wrapper",
-        div(class = "combined-info-box", style = "margin-bottom: 20px; display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start;",
-            instructions_content, summary_pills),
-        table_content,
-        navigation_ui
-      )
-    )
+    table_content <- create_task_table_v2(task_idx, current_task$current, current_task$alternative, TRIP_PURPOSES_V2, input)
+    navigation_ui <- div(style = "margin-top: 20px; display: flex; justify-content: space-between; align-items: center;", if (task_idx > 1) { actionButton("prev_task_button_v2", "Back", class = "btn-default btn-lg") } else { div() }, tags$strong(paste0("Task ", task_idx, " of ", num_tasks)), if (task_idx < num_tasks) { actionButton("next_task_button_v2", "Next", class = "btn-primary btn-lg") } else { actionButton("finish_v2_button", "Finish and Continue", class = "btn-success btn-lg") })
+    tagList(tags$style(css_styles_v2), div(class = "survey-content-wrapper", div(class = "combined-info-box", style = "margin-bottom: 20px; display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start;", instructions_content, summary_pills), table_content, navigation_ui))
   })
-  
   # --- V2: Calculation Logic ---
   compute_estimates_v2 <- reactive({
-    req(input$num_cars, current_task_index_v2(), input$household_children)
-    req(input$drivers_licence, input$at_ability)
-    
-    profile <- create_user_profile(input)
-    modes <- get_modes_for_choice(profile, input)
-    tasks <- get_choice_tasks(profile, modes)
-    
-    if (length(tasks) == 0) return(list(est_cost = "N/A", work_text = "N/A", leisure_text = "N/A"))
-    
-    task_idx <- current_task_index_v2()
-    current_task <- tasks[[task_idx]]
-    
-    all_mode_props <- list(); all_mode_costs <- list(); mode_names <- list()
-    
-    # Calculate shares from the _v2 sliders
-    shares_by_purpose <- sapply(seq_along(TRIP_PURPOSES), function(p_idx) {
-      clean_purpose <- gsub("[^A-Za-z0-9]", "_", TRIP_PURPOSES[[p_idx]])
-      slider_id <- paste0("task", task_idx, "_share_v2_", clean_purpose)
-      alt_share <- (input[[slider_id]] %||% 0) / 100
-      c(current = 1 - alt_share, alternative = alt_share)
-    })
-    
+    req(input$num_cars, current_task_index_v2(), input$household_children, input$commute_distance); req(input$drivers_licence, input$at_ability)
+    profile <- create_user_profile(input); modes <- get_modes_for_choice(profile, input); tasks <- get_choice_tasks(profile, modes); if (length(tasks) == 0) return(list(est_cost = "N/A", work_text = "N/A", leisure_text = "N/A"))
+    task_idx <- current_task_index_v2(); current_task <- tasks[[task_idx]]; all_mode_props <- list(); all_mode_costs <- list(); mode_names <- list()
+    shares_by_purpose <- sapply(seq_along(TRIP_PURPOSES_V2), function(p_idx) { clean_purpose <- gsub("[^A-Za-z0-9]", "_", TRIP_PURPOSES_V2[[p_idx]]); slider_id <- paste0("task", task_idx, "_share_v2_", clean_purpose); alt_share <- (input[[slider_id]] %||% 0) / 100; c(current = 1 - alt_share, alternative = alt_share) })
     num_current_modes <- length(current_task$current)
-    for (mode in current_task$current) {
-      all_mode_props[[mode$id]] <- shares_by_purpose['current', ] / num_current_modes
-      all_mode_costs[[mode$id]] <- mode$cost_val %||% 0
-      mode_names[[mode$id]] <- if (profile$is_zero_car) mode$title else paste("Vehicle", mode$vehicle_index)
-    }
-    
-    alt_mode <- current_task$alternative
-    all_mode_props[[alt_mode$id]] <- shares_by_purpose['alternative', ]
-    all_mode_costs[[alt_mode$id]] <- alt_mode$cost_val %||% 0
-    mode_names[[alt_mode$id]] <- alt_mode$title
-    
+    for (mode in current_task$current) { all_mode_props[[mode$id]] <- shares_by_purpose['current', ] / num_current_modes; all_mode_costs[[mode$id]] <- mode$cost_val %||% 0; mode_names[[mode$id]] <- if (profile$is_zero_car) mode$title else paste("Vehicle", mode$vehicle_index) }
+    alt_mode <- current_task$alternative; all_mode_props[[alt_mode$id]] <- shares_by_purpose['alternative', ]; all_mode_costs[[alt_mode$id]] <- alt_mode$cost_val %||% 0; mode_names[[alt_mode$id]] <- alt_mode$title
     if (length(all_mode_props) == 0) return(list(est_cost = "£0", work_text = "Awaiting input...", leisure_text = "Awaiting input..."))
-    
-    mode_props_matrix <- do.call(cbind, all_mode_props)
-    mode_avgs <- rowMeans(mode_props_matrix, na.rm = TRUE)
-    mode_costs <- unlist(all_mode_costs[colnames(mode_props_matrix)])
-    est_monthly_cost <- sum(mode_costs * mode_avgs, na.rm = TRUE)
-    
+    mode_props_matrix <- do.call(cbind, all_mode_props); mode_avgs <- rowMeans(mode_props_matrix, na.rm = TRUE); mode_costs <- unlist(all_mode_costs[colnames(mode_props_matrix)]); est_monthly_cost <- sum(mode_costs * mode_avgs, na.rm = TRUE)
     make_breakdown_text <- function(purpose_idx) {
-      props_vec <- mode_props_matrix[purpose_idx, ]
-      active_mask <- props_vec > 0.001
-      if (!any(active_mask)) return("No trips selected")
-      active_names <- unlist(mode_names)[active_mask]
-      active_vals <- props_vec[active_mask]
-      total_prop <- sum(active_vals); if (total_prop < 0.001) return("No trips selected")
-      pct <- round(100 * active_vals / total_prop)
-      final_names <- active_names[pct > 0]; final_pcts <- pct[pct > 0]
-      if(length(final_names) == 0) return("No trips selected")
-      paste0(paste0(final_names, ": ", final_pcts, "%"), collapse = " | ")
+      props_vec <- mode_props_matrix[purpose_idx, ]; active_mask <- props_vec > 0.001; if (!any(active_mask)) return("No trips selected"); active_names <- unlist(mode_names)[active_mask]; active_vals <- props_vec[active_mask]; total_prop <- sum(active_vals); if (total_prop < 0.001) return("No trips selected"); pct <- round(100 * active_vals / total_prop); final_names <- active_names[pct > 0]; final_pcts <- pct[pct > 0]; if(length(final_names) == 0) return("No trips selected"); paste0(paste0(final_names, ": ", final_pcts, "%"), collapse = " | ")
     }
-    
-    list(
-      est_cost = paste0("£", formatC(round(est_monthly_cost), format = "f", big.mark = ",", digits = 0)),
-      work_text = make_breakdown_text(1),
-      leisure_text = make_breakdown_text(2)
-    )
+    list(est_cost = paste0("£", formatC(round(est_monthly_cost), format = "f", big.mark = ",", digits = 0)), work_text = make_breakdown_text(1), leisure_text = make_breakdown_text(2))
   })
-  
   # --- V2: Render Outputs ---
-  output$cost_summary_val_v2 <- renderText({ compute_estimates_v2()$est_cost })
-  output$trips_work_summary_v2 <- renderText({ compute_estimates_v2()$work_text })
-  output$trips_leisure_summary_v2 <- renderText({ compute_estimates_v2()$leisure_text })
-  
-  # --- V2: Final navigation button ---
-  observeEvent(input$finish_v2_button, {
-    # Add logic here to move to the next section of the survey
-    # For now, it will just sit on the page.
-  })
-  
-  
+  output$cost_summary_val_v2 <- renderText({ compute_estimates_v2()$est_cost }); output$trips_work_summary_v2 <- renderText({ compute_estimates_v2()$work_text }); output$trips_leisure_summary_v2 <- renderText({ compute_estimates_v2()$leisure_text })
+  observeEvent(input$finish_v2_button, {})
  
 }
