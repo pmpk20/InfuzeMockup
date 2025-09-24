@@ -6,7 +6,7 @@ library(shinydashboard)
 
 # Define the frequency options
 freq_choices <- c("Never", "Monthly", "Weekly", "Daily")
-transport_modes <- c("Taxi", "Hire car", "Car share", "Borrow", "Use my own car")
+transport_modes <- c("Taxi", "Hire car", "Car club", "Borrow", "Use my own car")
 
 
 # Define the user interface
@@ -127,6 +127,9 @@ fluidPage(
       selectInput("age_bracket", "How old are you?", width = "50%",
                   choices = c("18-24", "25-34", "35-44", "45-54", "55-64", "65+")),
       
+      selectInput("household_children", "How many children under the age of 16 live in your household?",
+                  width = "50%", choices = c("0", "1", "2", "3 or more")),
+      
       selectInput("drivers_licence", "Do you currently hold a full valid UK driving licence?", width = "50%",
                   choices = c("Yes", "No")),
       
@@ -189,10 +192,19 @@ fluidPage(
                                                                                                                                   hr(style="border-top: 1px solid #eee;"),
                                                                                                                                   h5("Current Weekly Use & Cost of this Vehicle"),
                                                                                                                                   # --- NEW: Monthly cost question ---
-                                                                                                                                  selectInput("car1_cost_rp", "Approx. total monthly running cost for this vehicle (incl. fuel, insurance, tax, maintenance):",
+                                                                                                                                  selectInput("car1_cost_rp", 
+                                                                                                                                              "Please indicate your approximate monthly running cost for this vehicle (incl. fuel, insurance, tax, maintenance):",
                                                                                                                                               choices = c("Under £100", "£101 - £200", "£201 - £300", "£301 - £400", "Over £400", "Don't know / Prefer not to say")),
-                                                                                                                                  radioButtons("car1_work_trips_rp", "Trips to work:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
-                                                                                                                                  radioButtons("car1_leisure_trips_rp", "Leisure trips:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE)
+                                                                                                                                  
+                                                                                                                                  radioButtons("car1_work_trips_rp", 
+                                                                                                                                               "Please indicate roughly how many trips each week do you make with this vehicle to your place of work:", 
+                                                                                                                                               choices = c("None","For a few trips","For around half","For most trips","For all trips"), 
+                                                                                                                                               inline=TRUE),
+                                                                                                                                  
+                                                                                                                                  radioButtons("car1_leisure_trips_rp", 
+                                                                                                                                               "Please indicate roughly how many trips each week do you make with this vehicle for leisure/recreational purposes:", 
+                                                                                                                                               choices = c("None","For a few trips","For around half","For most trips","For all trips"),
+                                                                                                                                               inline=TRUE)
       ))),
       
       # Vehicle 2
@@ -203,10 +215,17 @@ fluidPage(
                                                                                                                                                                 selectInput("car2_parking", "Where is this vehicle normally parked overnight?", choices = c("On a private driveway or in a garage", "On the street (designated bay)", "On the street (no designated bay)", "Private car park")),
                                                                                                                                                                 hr(style="border-top: 1px solid #eee;"),
                                                                                                                                                                 h5("Current Weekly Use & Cost of this Vehicle"),
-                                                                                                                                                                selectInput("car2_cost_rp", "Approx. total monthly running cost for this vehicle:",
+                                                                                                                                                                selectInput("car2_cost_rp", 
+                                                                                                                                                                            "Please indicate your approximate monthly running cost for this vehicle (incl. fuel, insurance, tax, maintenance):",
                                                                                                                                                                             choices = c("Under £100", "£101 - £200", "£201 - £300", "£301 - £400", "Over £400", "Don't know / Prefer not to say")),
-                                                                                                                                                                radioButtons("car2_work_trips_rp", "Trips to work:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
-                                                                                                                                                                radioButtons("car2_leisure_trips_rp", "Leisure trips:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE)
+                                                                                                                                                                
+                                                                                                                                                                radioButtons("car2_work_trips_rp", 
+                                                                                                                                                                             "Please indicate roughly how many trips each week do you make with this vehicle to your place of work:", 
+                                                                                                                                                                             choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
+                                                                                                                                                                
+                                                                                                                                                                radioButtons("car2_leisure_trips_rp", 
+                                                                                                                                                                             "Please indicate roughly how many trips each week do you make with this vehicle for leisure/recreational purposes:", 
+                                                                                                                                                                             choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE)
       ))),
       
       # Vehicle 3
@@ -217,10 +236,16 @@ fluidPage(
                                                                                                                                        selectInput("car3_parking", "Where is this vehicle normally parked overnight?", choices = c("On a private driveway or in a garage", "On the street (designated bay)", "On the street (no designated bay)", "Private car park")),
                                                                                                                                        hr(style="border-top: 1px solid #eee;"),
                                                                                                                                        h5("Current Weekly Use & Cost of this Vehicle"),
-                                                                                                                                       selectInput("car3_cost_rp", "Approx. total monthly running cost for this vehicle:",
+                                                                                                                                       selectInput("car3_cost_rp", 
+                                                                                                                                                   "Please indicate your approximate monthly running cost for this vehicle (incl. fuel, insurance, tax, maintenance):",
                                                                                                                                                    choices = c("Under £100", "£101 - £200", "£201 - £300", "£301 - £400", "Over £400", "Don't know / Prefer not to say")),
-                                                                                                                                       radioButtons("car3_work_trips_rp", "Trips to work:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
-                                                                                                                                       radioButtons("car3_leisure_trips_rp", "Leisure trips:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE)
+                                                                                                                                       radioButtons("car3_work_trips_rp", 
+                                                                                                                                                    "Please indicate roughly how many trips each week do you make with this vehicle to your place of work:", 
+                                                                                                                                                    choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
+                                                                                                                                       
+                                                                                                                                       radioButtons("car3_leisure_trips_rp", 
+                                                                                                                                                    "Please indicate roughly how many trips each week do you make with this vehicle for leisure/recreational purposes:", 
+                                                                                                                                                    choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE)
       ))),
       
       # Vehicle 4
@@ -231,10 +256,17 @@ fluidPage(
                                                                                                               selectInput("car4_parking", "Where is this vehicle normally parked overnight?", choices = c("On a private driveway or in a garage", "On the street (designated bay)", "On the street (no designated bay)", "Private car park")),
                                                                                                               hr(style="border-top: 1px solid #eee;"),
                                                                                                               h5("Current Weekly Use & Cost of this Vehicle"),
-                                                                                                              selectInput("car4_cost_rp", "Approx. total monthly running cost for this vehicle:",
+                                                                                                              selectInput("car4_cost_rp", 
+                                                                                                                          "Please indicate your approximate monthly running cost for this vehicle (incl. fuel, insurance, tax, maintenance):",
                                                                                                                           choices = c("Under £100", "£101 - £200", "£201 - £300", "£301 - £400", "Over £400", "Don't know / Prefer not to say")),
-                                                                                                              radioButtons("car4_work_trips_rp", "Trips to work:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
-                                                                                                              radioButtons("car4_leisure_trips_rp", "Leisure trips:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE)
+                                                                                                              
+                                                                                                              radioButtons("car4_work_trips_rp", 
+                                                                                                                           "Please indicate roughly how many trips each week do you make with this vehicle to your place of work:", 
+                                                                                                                           choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
+                                                                                                              
+                                                                                                              radioButtons("car4_leisure_trips_rp", 
+                                                                                                                           "Please indicate roughly how many trips each week do you make with this vehicle for leisure/recreational purposes:", 
+                                                                                                                           choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE)
       ))),
       
       conditionalPanel(
@@ -249,10 +281,18 @@ fluidPage(
             hr(style="border-top: 1px solid #eee;"),
             h5("Current Weekly Use & Cost"),
             # --- NEW: Monthly cost question for zero-car (licence) ---
-            selectInput("car0_cost_rp", "Roughly, what is your household's total monthly spend on travel (e.g. bus passes, tickets, taxis)?", width = "400px",
+            selectInput("car0_cost_rp", 
+                        "Roughly, what is your household's total monthly spend on travel (e.g. bus passes, tickets, taxis)?", width = "400px",
                         choices = c("£0", "£1 - £30", "£31 - £60", "£61 - £100", "£101 - £150", "More than £150", "Don't know / Prefer not to say")),
-            radioButtons("car0_work_trips_rp", "Trips to work:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
-            radioButtons("car0_leisure_trips_rp", "Leisure trips:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE)
+            
+            radioButtons("car0_work_trips_rp", 
+                         "Please indicate roughly how many trips each week do you make with this vehicle to your place of work:", 
+                         choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
+            
+            radioButtons("car0_leisure_trips_rp", 
+                         "Please indicate roughly how many trips each week do you make with this vehicle for leisure/recreational purposes:", 
+                         choices = c("None","For a few trips","For around half","For most trips","For all trips"), 
+                         inline=TRUE)
           )
         ),
         conditionalPanel(
