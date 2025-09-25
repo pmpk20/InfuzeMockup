@@ -194,109 +194,46 @@ fluidPage(
         p("Please provide details for the vehicle(s) below, including how you currently use them.")
       ),
       
-      # --- VEHICLE PANELS UPDATED WITH MONTHLY COST QUESTION ---
-      
-      # Vehicle 1
-      conditionalPanel(condition = "input.num_cars != '0'", bsCollapse(id = "car1_collapse", open = "car1_panel", bsCollapsePanel(title = "Main (Most-Used) Household Vehicle", value = "car1_panel", 
-                                                                                                                                  selectInput("car1_body_type", "Vehicle Body Type:", choices = c("Hatchback", "Saloon", "Estate", "SUV / 4x4", "MPV", "Coupe / Sports car", "Van", "Motorbike / Scooter")),
-                                                                                                                                  selectInput(paste0("car1_ownership"), "How is this vehicle owned/accessed?",
-                                                                                                                                              choices = c("Owned outright (no finance)", "Owned with a loan/HP", 
-                                                                                                                                                          "Personal Contract Purchase (PCP) or Lease", 
-                                                                                                                                                          "Company car", "Long-term rental/subscription", "Other")),
-                                                                                                                                  selectInput("car1_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid", "Other Hybrid")),
-                                                                                                                                  selectInput("car1_age_year", "Vehicle Age (Registration Year):", choices = c("2022 or newer", "2018 - 2021", "2013 - 2017", "2008 - 2012", "2007 or older")),
-                                                                                                                                  selectInput("car1_parking", "Where is this vehicle normally parked overnight?", choices = c("On a private driveway or in a garage", "On the street (designated bay)", "On the street (no designated bay)", "Private car park")),
-                                                                                                                                  hr(style="border-top: 1px solid #eee;"),
-                                                                                                                                  h5("Current Weekly Use & Cost of this Vehicle"),
-                                                                                                                                  # --- NEW: Monthly cost question ---
-                                                                                                                                  selectInput("car1_cost_rp", 
-                                                                                                                                              "Please indicate your approximate monthly running cost for this vehicle (incl. fuel, insurance, tax, maintenance):",
-                                                                                                                                              choices = c("Under £100", "£101 - £200", "£201 - £300", "£301 - £400", "Over £400", "Don't know / Prefer not to say")),
-                                                                                                                                  
-                                                                                                                                  radioButtons("car1_work_trips_rp", 
-                                                                                                                                               "Please indicate roughly how many trips each week do you make with this vehicle to your place of work:", 
-                                                                                                                                               choices = c("None","For a few trips","For around half","For most trips","For all trips"), 
-                                                                                                                                               inline=TRUE),
-                                                                                                                                  
-                                                                                                                                  radioButtons("car1_leisure_trips_rp", 
-                                                                                                                                               "Please indicate roughly how many trips each week do you make with this vehicle for leisure/recreational purposes:", 
-                                                                                                                                               choices = c("None","For a few trips","For around half","For most trips","For all trips"),
-                                                                                                                                               inline=TRUE)
-      ))),
-      
-      # Vehicle 2
-      conditionalPanel(condition = "input.num_cars == '2' || input.num_cars == '3' || input.num_cars == '4+'", bsCollapse(id = "car2_collapse", bsCollapsePanel(title = "Second Most-Used Household Vehicle", value = "car2_panel", 
-                                                                                                                                                                selectInput("car2_body_type", "Vehicle Body Type:", choices = c("Hatchback", "Saloon", "Estate", "SUV / 4x4", "MPV", "Coupe / Sports car", "Van", "Motorbike / Scooter")),
-                                                                                                                                                                selectInput(paste0("car2_ownership"), "How is this vehicle owned/accessed?",
-                                                                                                                                                                            choices = c("Owned outright (no finance)", "Owned with a loan/HP", 
-                                                                                                                                                                                        "Personal Contract Purchase (PCP) or Lease", 
-                                                                                                                                                                                        "Company car", "Long-term rental/subscription", "Other")),
-                                                                                                                                                                selectInput("car2_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid", "Other Hybrid")),
-                                                                                                                                                                selectInput("car2_age_year", "Vehicle Age (Registration Year):", choices = c("2022 or newer", "2018 - 2021", "2013 - 2017", "2008 - 2012", "2007 or older")),
-                                                                                                                                                                selectInput("car2_parking", "Where is this vehicle normally parked overnight?", choices = c("On a private driveway or in a garage", "On the street (designated bay)", "On the street (no designated bay)", "Private car park")),
-                                                                                                                                                                hr(style="border-top: 1px solid #eee;"),
-                                                                                                                                                                h5("Current Weekly Use & Cost of this Vehicle"),
-                                                                                                                                                                selectInput("car2_cost_rp", 
-                                                                                                                                                                            "Please indicate your approximate monthly running cost for this vehicle (incl. fuel, insurance, tax, maintenance):",
-                                                                                                                                                                            choices = c("Under £100", "£101 - £200", "£201 - £300", "£301 - £400", "Over £400", "Don't know / Prefer not to say")),
-                                                                                                                                                                
-                                                                                                                                                                radioButtons("car2_work_trips_rp", 
-                                                                                                                                                                             "Please indicate roughly how many trips each week do you make with this vehicle to your place of work:", 
-                                                                                                                                                                             choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
-                                                                                                                                                                
-                                                                                                                                                                radioButtons("car2_leisure_trips_rp", 
-                                                                                                                                                                             "Please indicate roughly how many trips each week do you make with this vehicle for leisure/recreational purposes:", 
-                                                                                                                                                                             choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE)
-      ))),
-      
-      # Vehicle 3
-      conditionalPanel(condition = "input.num_cars == '3' || input.num_cars == '4+'", bsCollapse(id = "car3_collapse", bsCollapsePanel(title = "Third Most-Used Household Vehicle", value = "car3_panel", 
-                                                                                                                                       selectInput("car3_body_type", "Vehicle Body Type:", choices = c("Hatchback", "Saloon", "Estate", "SUV / 4x4", "MPV", "Coupe / Sports car", "Van", "Motorbike / Scooter")),
-                                                                                                                                       selectInput(paste0("car3_ownership"), "How is this vehicle owned/accessed?",
-                                                                                                                                                   choices = c("Owned outright (no finance)", "Owned with a loan/HP", 
-                                                                                                                                                               "Personal Contract Purchase (PCP) or Lease", 
-                                                                                                                                                               "Company car", "Long-term rental/subscription", "Other")),
-                                                                                                                                       selectInput("car3_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid", "Other Hybrid")),
-                                                                                                                                       selectInput("car3_age_year", "Vehicle Age (Registration Year):", choices = c("2022 or newer", "2018 - 2021", "2013 - 2017", "2008 - 2012", "2007 or older")),
-                                                                                                                                       selectInput("car3_parking", "Where is this vehicle normally parked overnight?", choices = c("On a private driveway or in a garage", "On the street (designated bay)", "On the street (no designated bay)", "Private car park")),
-                                                                                                                                       hr(style="border-top: 1px solid #eee;"),
-                                                                                                                                       h5("Current Weekly Use & Cost of this Vehicle"),
-                                                                                                                                       selectInput("car3_cost_rp", 
-                                                                                                                                                   "Please indicate your approximate monthly running cost for this vehicle (incl. fuel, insurance, tax, maintenance):",
-                                                                                                                                                   choices = c("Under £100", "£101 - £200", "£201 - £300", "£301 - £400", "Over £400", "Don't know / Prefer not to say")),
-                                                                                                                                       radioButtons("car3_work_trips_rp", 
-                                                                                                                                                    "Please indicate roughly how many trips each week do you make with this vehicle to your place of work:", 
-                                                                                                                                                    choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
-                                                                                                                                       
-                                                                                                                                       radioButtons("car3_leisure_trips_rp", 
-                                                                                                                                                    "Please indicate roughly how many trips each week do you make with this vehicle for leisure/recreational purposes:", 
-                                                                                                                                                    choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE)
-      ))),
-      
-      # Vehicle 4
-      conditionalPanel(condition = "input.num_cars == '4+'", bsCollapse(id = "car4_collapse", bsCollapsePanel(title = "Fourth Most-Used Household Vehicle", value = "car4_panel", 
-                                                                                                              selectInput("car4_body_type", "Vehicle Body Type:", choices = c("Hatchback", "Saloon", "Estate", "SUV / 4x4", "MPV", "Coupe / Sports car", "Van", "Motorbike / Scooter")),
-                                                                                                              selectInput(paste0("car4_ownership"), "How is this vehicle owned/accessed?",
-                                                                                                                          choices = c("Owned outright (no finance)", "Owned with a loan/HP", 
-                                                                                                                                      "Personal Contract Purchase (PCP) or Lease", 
-                                                                                                                                      "Company car", "Long-term rental/subscription", "Other")),
-                                                                                                              selectInput("car4_fuel", "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid", "Other Hybrid")),
-                                                                                                              selectInput("car4_age_year", "Vehicle Age (Registration Year):", choices = c("2022 or newer", "2018 - 2021", "2013 - 2017", "2008 - 2012", "2007 or older")),
-                                                                                                              selectInput("car4_parking", "Where is this vehicle normally parked overnight?", choices = c("On a private driveway or in a garage", "On the street (designated bay)", "On the street (no designated bay)", "Private car park")),
-                                                                                                              hr(style="border-top: 1px solid #eee;"),
-                                                                                                              h5("Current Weekly Use & Cost of this Vehicle"),
-                                                                                                              selectInput("car4_cost_rp", 
-                                                                                                                          "Please indicate your approximate monthly running cost for this vehicle (incl. fuel, insurance, tax, maintenance):",
-                                                                                                                          choices = c("Under £100", "£101 - £200", "£201 - £300", "£301 - £400", "Over £400", "Don't know / Prefer not to say")),
-                                                                                                              
-                                                                                                              radioButtons("car4_work_trips_rp", 
-                                                                                                                           "Please indicate roughly how many trips each week do you make with this vehicle to your place of work:", 
-                                                                                                                           choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
-                                                                                                              
-                                                                                                              radioButtons("car4_leisure_trips_rp", 
-                                                                                                                           "Please indicate roughly how many trips each week do you make with this vehicle for leisure/recreational purposes:", 
-                                                                                                                           choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE)
-      ))),
+      # Programmatically generate UI for vehicles 1 to 4
+      lapply(1:4, function(i) {
+        show_condition <- switch(i,
+                                 "1" = "input.num_cars != '0'",
+                                 "2" = "input.num_cars == '2' || input.num_cars == '3' || input.num_cars == '4+'",
+                                 "3" = "input.num_cars == '3' || input.num_cars == '4+'",
+                                 "4" = "input.num_cars == '4+'"
+        )
+        vehicle_title <- switch(i,
+                                "1" = "Main (Most-Used) Household Vehicle",
+                                "2" = "Second Most-Used Household Vehicle",
+                                "3" = "Third Most-Used Household Vehicle",
+                                "4" = "Fourth Most-Used Household Vehicle"
+        )
+        
+        conditionalPanel(
+          condition = show_condition,
+          bsCollapse(
+            id = paste0("car", i, "_collapse"), 
+            open = if(i == 1) paste0("car", i, "_panel") else NULL,
+            bsCollapsePanel(
+              title = vehicle_title, 
+              value = paste0("car", i, "_panel"),
+              
+              selectInput(paste0("car", i, "_body_type"), "Vehicle Body Type:", choices = c("Hatchback", "Saloon", "Estate", "SUV / 4x4", "MPV", "Coupe / Sports car", "Van", "Motorbike / Scooter")),
+              selectInput(paste0("car", i, "_ownership"), "How is this vehicle owned/accessed?", choices = c("Owned outright (no finance)", "Owned with a loan/HP", "Personal Contract Purchase (PCP) or Lease", "Company car", "Long-term rental/subscription", "Other")),
+              selectInput(paste0("car", i, "_fuel"), "Main Fuel Type:", choices = c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid", "Other Hybrid")),
+              selectInput(paste0("car", i, "_age_year"), "Vehicle Age (Registration Year):", choices = c("2022 or newer", "2018 - 2021", "2013 - 2017", "2008 - 2012", "2007 or older")),
+              selectInput(paste0("car", i, "_parking"), "Where is this vehicle normally parked overnight?", choices = c("On a private driveway or in a garage", "On the street (designated bay)", "On the street (no designated bay)", "Private car park")),
+              hr(style="border-top: 1px solid #eee;"),
+              
+              h5("Current Weekly Use & Cost of this Vehicle"),
+              selectInput(paste0("car", i, "_cost_rp"), "Approx. total monthly running cost for this vehicle (incl. fuel, insurance, tax, maintenance):",
+                          choices = c("Under £100", "£101 - £200", "£201 - £300", "£301 - £400", "Over £400", "Don't know / Prefer not to say")),
+              sliderInput(paste0("car", i, "_work_trips_rp"), "Please indicate roughly how many trips each week you make with this vehicle to your place of work:", min = 0, max = 10, value = 0, step = 1),
+              sliderInput(paste0("car", i, "_leisure_trips_rp"), "Please indicate roughly how many trips each week you make with this vehicle for leisure/recreational purposes:", min = 0, max = 10, value = 0, step = 1)
+            )
+          )
+        )
+      }),
       
       conditionalPanel(
         condition = "input.num_cars == '0'",
@@ -308,20 +245,11 @@ fluidPage(
             selectInput("car0_Commute_licence", "For most of your journeys, how do you travel?", width = "400px",
                         choices = c("Public transport", "Car club/Car sharing", "Ride-hailing (e.g. Uber, taxi)", "Car passenger (friend, family, etc.)", "Cycling", "Walking", "Demand-responsive transport")),
             hr(style="border-top: 1px solid #eee;"),
-            h5("Current Weekly Use & Cost"),
-            # --- NEW: Monthly cost question for zero-car (licence) ---
-            selectInput("car0_cost_rp", 
-                        "Roughly, what is your household's total monthly spend on travel (e.g. bus passes, tickets, taxis)?", width = "400px",
+            h5("Current Weekly Travel & Cost"),
+            selectInput("car0_cost_rp", "Roughly, what is your household's total monthly spend on travel (e.g. bus passes, tickets, taxis)?",
                         choices = c("£0", "£1 - £30", "£31 - £60", "£61 - £100", "£101 - £150", "More than £150", "Don't know / Prefer not to say")),
-            
-            radioButtons("car0_work_trips_rp", 
-                         "Please indicate roughly how many trips each week do you make with this vehicle to your place of work:", 
-                         choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
-            
-            radioButtons("car0_leisure_trips_rp", 
-                         "Please indicate roughly how many trips each week do you make with this vehicle for leisure/recreational purposes:", 
-                         choices = c("None","For a few trips","For around half","For most trips","For all trips"), 
-                         inline=TRUE)
+            sliderInput("car0_work_trips_rp", "Please indicate roughly how many trips each week you make with this way of travelling to your place of work:", min = 0, max = 10, value = 0, step = 1),
+            sliderInput("car0_leisure_trips_rp", "Please indicate roughly how many trips each week you make with this way of travelling for leisure/recreational purposes:", min = 0, max = 10, value = 0, step = 1)
           )
         ),
         conditionalPanel(
@@ -331,12 +259,11 @@ fluidPage(
             selectInput("car0_Commute_no_licence", "For most of your journeys, how do you travel?", width = "400px",
                         choices = c("Public transport", "Ride-hailing (e.g. Uber, taxi)", "Car passenger (friend, family, etc.)", "Cycling", "Walking", "Demand-responsive transport")),
             hr(style="border-top: 1px solid #eee;"),
-            h5("Current Weekly Use & Cost"),
-            # --- NEW: Monthly cost question for zero-car (no licence) ---
+            h5("Current Weekly Travel & Cost"),
             selectInput("car0_no_licence_cost_rp", "Roughly, what is your household's total monthly spend on travel?",
                         choices = c("£0", "£1 - £30", "£31 - £60", "£61 - £100", "£101 - £150", "More than £150", "Don't know / Prefer not to say")),
-            radioButtons("car0_no_licence_work_trips_rp", "Trips to work:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE),
-            radioButtons("car0_no_licence_leisure_trips_rp", "Leisure trips:", choices = c("None","For a few trips","For around half","For most trips","For all trips"), inline=TRUE)
+            sliderInput("car0_no_licence_work_trips_rp", "Please indicate roughly how many trips each week you make with this way of travelling to your place of work:", min = 0, max = 10, value = 0, step = 1),
+            sliderInput("car0_no_licence_leisure_trips_rp", "Please indicate roughly how many trips each week you make with this way of travelling for leisure/recreational purposes:", min = 0, max = 10, value = 0, step = 1)
           )
         )
       ),
@@ -345,14 +272,6 @@ fluidPage(
       h4("Step 3: Future Intentions"),
       selectInput("num_cars_intend", "Do you intend to acquire or dispose of a household vehicle in the next 12 months?",
                   choices = c("Dispose of one or more vehicles", "No change", "Acquire one or more vehicles"), selected = "No change", width = "400px"),
-      
-      selectInput("work_parking", "Which of these best describes the parking situation at your primary place of work or study?",
-                  width = "50%",
-                  choices = c("I do not commute to a regular workplace/place of study",
-                              "Guaranteed and free parking is provided",
-                              "Parking is available, but not guaranteed or I have to pay",
-                              "No parking is available")),
-      
       hr(),
       actionButton("to_rp2_button", "Continue ->", class = "btn-primary")
     ),
