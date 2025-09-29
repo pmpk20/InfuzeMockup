@@ -144,9 +144,9 @@ function(input, output, session) {
     service_descs <- c(); if (any(grepl("car_club", alt_ids))) service_descs <- c(service_descs, "neighbourhood car clubs"); if ("public_transport" %in% alt_ids) service_descs <- c(service_descs, "24/7 public transport"); if ("active_travel" %in% alt_ids) service_descs <- c(service_descs, "priority lanes for cycling and walking"); if ("drt" %in% alt_ids) service_descs <- c(service_descs, "on-demand shuttle services")
     if (length(service_descs) > 0) { services_text <- paste(service_descs, collapse = ", ", sep=""); services_text <- sub(",([^,]*)$", " and\\1", services_text); return(paste(base_text, "This includes", services_text, "across the city.")) }; return(base_text)
   }
-
+  
   # == VERSION 1: RADIO BUTTON WIZARD (for sa_panel_3)
-
+  
   
   # --- V1: Wizard State & Navigation ---
   current_task_index_v1 <- reactiveVal(1)
@@ -228,326 +228,198 @@ function(input, output, session) {
   observeEvent(input$finish_v1_button, {})
   
   
-  # ========= Version 2: Menu by sliders =========
-  mode_data <- reactive({
-    req(input$num_cars)
-    
-    create_vehicle_desc <- function(car_num) {
-      fuel <- input[[paste0("car", car_num, "_fuel")]]
-      type <- input[[paste0("car", car_num, "_type")]]
-      if (is.null(fuel) || is.null(type)) return("Unknown Vehicle")
-      paste0(tolower(fuel), " ", tolower(type))
-    }
-    
-    modes <- list()
-    num_cars <- as.integer(gsub("\\+", "", input$num_cars))
-    if (is.na(num_cars)) num_cars <- 0
-    
-    # 1. Add current vehicles from RP data
-    if (num_cars > 0) {
-      for (i in 1:min(num_cars, 4)) {
-        modes[[length(modes) + 1]] <- list(
-          id = paste0("current_", i), 
-          title = paste("Your", create_vehicle_desc(i)), 
-          icon = "car-side", 
-          is_current = TRUE,
-          access = "Immediate, 24/7 at home", 
-          availability = "Very High (99% success rate)", 
-          cost_val = 350
-        )
-      }
-    }
-    
-    # 2. Add alternative/configurable modes
-    modes[[length(modes) + 1]] <- list(
-      id = "alt_1", 
-      title = "A New Configurable Car", 
-      icon = "car-alt", 
-      is_current = FALSE, 
-      is_configurable = TRUE,
-      access = "Immediate, 24/7 at home", 
-      availability = "Highest (Brand New)", 
-      cost_val = NULL
-    )
-    
-    modes[[length(modes) + 1]] <- list(
-      id = "car_sharing", 
-      title = "Peer-to-Peer Car-Club Membership", 
-      icon = "users", 
-      is_current = FALSE,
-      access = "Within a 10 min walk", 
-      availability = "High (95% success rate)", 
-      cost_val = 60
-    )
-    
-    modes[[length(modes) + 1]] <- list(
-      id = "car_club", 
-      title = "Closed Loop Car-Club Membership", 
-      icon = "users", 
-      is_current = FALSE,
-      access = "Within a 10 min walk", 
-      availability = "High (95% success rate)", 
-      cost_val = 60
-    )
-    
-    modes[[length(modes) + 1]] <- list(
-      id = "public_transport", 
-      title = "Yorkshire Pass: Covers All Public Transport", 
-      icon = "bus-alt", 
-      is_current = FALSE,
-      access = "Within a 5 min walk", 
-      availability = "Medium (90% success rate)", 
-      cost_val = 75
-    )
-    
-    return(modes)
+  # ========= Version 2: Ternary Choice Task (Keep/Give Up/Swap) =========
+  # --- V4: Wizard State & Navigation ---
+  current_task_index_v4 <- reactiveVal(1)
+  observeEvent(input$next_task_button_v4, {
+    current_task_index_v4(current_task_index_v4() + 1)
+  })
+  observeEvent(input$prev_task_button_v4, {
+    current_task_index_v4(current_task_index_v4() - 1)
+  })
+  observe({ # Reset wizard if core inputs change
+    input$num_cars; input$drivers_licence; current_task_index_v4(1)
   })
   
-  
-  
-  output$sa_ui_placeholder4 <- renderUI({
-    modes <- mode_data()
+  # --- V4: Summary Box Logic ---
+  output$choice_summary_v4 <- renderText({
+    task_idx <- current_task_index_v4()
+    choice_input_id <- paste0("choice_v4_task", task_idx)
+    req(input[[choice_input_id]])
     
-    # --- Helper function to generate a single row ---
-    create_allocation_row <- function(mode, initial_trips) {
-      row_class <- if (mode$is_current) "allocation-row current-vehicle-row" else "allocation-row"
-      
-      cost_display <- if (is.null(mode$cost_val)) {
-        tags$span(id="dynamic_cost_display", textOutput("dynamic_price_alt_1", inline = TRUE))
-      } else { 
-        paste0("£", mode$cost_val) 
-      }
-      
-      title_cell_content <- if (!is.null(mode$is_configurable) && mode$is_configurable) {
+    profile <- create_user_profile(input)
+    modes <- get_modes_for_choice(profile, input)
+    alt_idx <- ((task_idx - 1) %% length(modes$alternatives)) + 1
+    alternative_mode <- modes$alternatives[[alt_idx]]
+    
+    switch(input[[choice_input_id]],
+           "keep" = "SUMMARY: You have chosen to keep your current vehicle.",
+           "give_up" = paste("SUMMARY: You have chosen to give up this vehicle for the", alternative_mode$title, ".")
+    )
+  })
+  
+  # --- V4: Main UI Rendering ---
+  output$sa_ui_placeholder4 <- renderUI({
+    req(input$num_cars, input$drivers_licence)
+    profile <- create_user_profile(input)
+    
+    if (profile$is_zero_car) {
+      return(tagList(
+        h3("Household Vehicle Choice"),
+        p("As your household does not currently own a vehicle, this section is not applicable. Please proceed to the next section."),
+        div(style = "text-align: center; margin-top: 30px;", actionButton("to_sa_button4", "Continue", class = "btn-primary btn-lg"))
+      ))
+    }
+    
+    modes <- get_modes_for_choice(profile, input)
+    num_tasks <- profile$num_cars
+    task_idx <- current_task_index_v4()
+    
+    if (task_idx > num_tasks || length(modes$alternatives) == 0) {
+      return(tagList(
+        p("You have completed this section. Please click continue."),
+        div(style = "text-align: center; margin-top: 30px;", actionButton("to_sa_button4", "Continue", class = "btn-success btn-lg"))
+      ))
+    }
+    
+    # --- Define Task Components ---
+    current_vehicle <- modes$current[[paste0("owned_", task_idx)]]
+    alt_idx <- ((task_idx - 1) %% length(modes$alternatives)) + 1
+    alternative_mode <- modes$alternatives[[alt_idx]]
+    
+    # --- UI Helper: Comparison Table ---
+    create_comparison_table_v4 <- function(current_v, alt_m) {
+      tags$table(class = "table table-bordered",
+                 tags$thead(tags$tr(
+                   tags$th("Attribute", style = "width:20%;"),
+                   tags$th(icon("car-side"), "Your Current Vehicle", class = "owned-col-header"),
+                   tags$th(icon(alt_m$icon), alt_m$title, class = "alt-col-header")
+                 )),
+                 tags$tbody(
+                   tags$tr(tags$td(strong("Description")), tags$td(current_v$description), tags$td(alt_m$description)),
+                   tags$tr(tags$td(strong("Access")), tags$td(current_v$access), tags$td(alt_m$access)),
+                   tags$tr(tags$td(strong("Availability")), tags$td(current_v$availability), tags$td(alt_m$availability)),
+                   tags$tr(tags$td(strong("Monthly Cost")), tags$td(current_v$cost_text), tags$td(alt_m$cost_text))
+                 )
+      )
+    }
+    
+    # --- UI Helper: Choice Cards ---
+    create_choice_card_v4 <- function(title, description, cost_text, icon_name, type) {
+      tags$div(
+        class = paste("choice-card-v4", type),
+        icon(icon_name, class = "fa-2x choice-icon"),
         tags$div(
-          tags$div(
-            style = "display: flex; align-items: center; margin-bottom: 8px;", 
-            icon(mode$icon, class = "fa-lg", style="margin-right: 10px;"), 
-            tags$strong(mode$title)
-          ),
-          tags$div(
-            style = "padding: 8px; border-radius: 6px; margin-top: 8px; background-color: #f8f9fa;",
-            selectInput("sa_alt_1_replace_type", "Type:", c("Car", "Van", "Motorbike"), width = "100%"),
-            selectInput("sa_alt_1_replace_fuel", "Fuel:", c("Petrol", "Diesel", "Fully Electric", "Plug-in Hybrid"), width = "100%"),
-            selectInput("sa_alt_1_replace_mileage", "Mileage:", c("0-2,000", "2,001-5,000", "5,001 - 10,000", "10,001+"), width = "100%")
-          )
-        )
-      } else {
-        tags$div(
-          style = "display: flex; align-items: center;", 
-          icon(mode$icon, class = "fa-lg", style="margin-right: 10px;"), 
-          tags$strong(mode$title)
-        )
-      }
-      
-      tags$tr(
-        class = row_class, 
-        `data-cost` = if(!is.null(mode$cost_val)) mode$cost_val else "", 
-        `data-dynamic-cost` = if(is.null(mode$cost_val)) "true" else "false",
-        tags$td(style = "vertical-align: middle; width: 25%;", title_cell_content),
-        tags$td(style = "text-align: center; vertical-align: middle; font-size: 0.85em; width: 15%;", mode$access),
-        tags$td(style = "text-align: center; vertical-align: middle; font-size: 0.85em; width: 15%;", mode$availability),
-        tags$td(style = "text-align: center; vertical-align: middle; font-weight: bold; width: 10%;", cost_display),
-        tags$td(
-          style = "vertical-align: middle; width: 35%;",
-          div(class = "slider-container",
-              span(class="slider-label-left", "Never"),
-              div(class = "allocation-cell",
-                  sliderInput(
-                    paste0("trips_", mode$id), 
-                    NULL, 
-                    min = 0, 
-                    max = 20, 
-                    value = initial_trips, 
-                    step = 1, 
-                    width = "100%"
-                  ),
-                  span(class = "trips-value-display", paste0(initial_trips, " trips"))
-              ),
-              span(class="slider-label-right", "Daily")
-          )
+          class = "choice-content",
+          h5(title),
+          p(description, class = "small"),
+          strong(cost_text)
         )
       )
     }
     
-    # --- Initial trips calculation (more realistic) ---
-    num_modes <- length(modes)
-    initial_trips <- rep(0, num_modes)
+    choice_names <- list(
+      create_choice_card_v4("Keep this Vehicle", "No change to this vehicle.", paste("Monthly Cost:", current_vehicle$cost_text), current_vehicle$icon, "keep"),
+      create_choice_card_v4(paste("Give up for", alternative_mode$title), alternative_mode$description, paste("New Cost:", alternative_mode$cost_text), alternative_mode$icon, "give-up")
+    )
+    choice_values <- c("keep", "give_up")
     
-    # Reasonable weekly trip assumptions
-    if (num_modes > 0) {
-      num_owned <- sum(vapply(modes, function(m) m$is_current, logical(1)))
-      
-      if (num_owned > 0) {
-        # If they own cars, primary mode gets most trips
-        for(i in 1:num_modes) {
-          if(modes[[i]]$is_current) {
-            initial_trips[i] <- max(1, round(10/num_owned))  # Split 10 trips among owned vehicles
-          } else {
-            # Alternative modes get fewer initial trips
-            if(modes[[i]]$id == "public_transport") initial_trips[i] <- 3
-            else if(modes[[i]]$id %in% c("car_sharing", "car_club")) initial_trips[i] <- 1
-            else initial_trips[i] <- 0
-          }
-        }
-      } else {
-        # No owned vehicles - distribute more evenly
-        initial_trips[1] <- 5  # First alternative gets more
-        if(num_modes > 1) initial_trips[2] <- 4
-        if(num_modes > 2) initial_trips[3] <- 3
-        for(i in 4:num_modes) if(i <= num_modes) initial_trips[i] <- 1
-      }
+    # --- Main Layout ---
+    css_styles_v4 <- HTML("
+    .survey-content-wrapper-v4 { max-width: 1000px; margin: 0 auto; }
+    .owned-col-header { background-color: #eafaf1 !important; }
+    .alt-col-header { background-color: #f8f9fa !important; }
+    
+    /* Force radio buttons into 2-column grid */
+    .choice-grid-wrapper .shiny-options-group {
+      display: grid !important;
+      grid-template-columns: 1fr 1fr !important;
+      gap: 20px !important;
+      margin: 0 !important;
     }
     
-    table_rows <- lapply(1:num_modes, function(i) create_allocation_row(modes[[i]], initial_trips[i]))
-    slider_ids <- vapply(modes, function(m) paste0("trips_", m$id), character(1))
+    .choice-grid-wrapper .radio {
+      margin: 0 !important;
+      width: 100% !important;
+    }
     
-    # --- Main UI Layout ---
-    tagList(
-      tags$style(HTML("
-      .table { max-width: 900px; margin: 0 auto; }
-      .current-vehicle-row td:first-child { position: relative; }
-      .current-vehicle-row td:first-child::before { 
-        content: 'OWNED'; position: absolute; top: 2px; right: 2px; 
-        background-color: #ffd700; color: #333; padding: 2px 6px; 
-        border-radius: 0 0 0 4px; font-size: 0.7em; font-weight: bold; 
-      }
-      .current-vehicle-row td { background-color: #fffef7 !important; }
-      .slider-container { position: relative; padding: 15px 0; }
-      .slider-label-left, .slider-label-right { 
-        position: absolute; top: 0; font-size: 0.75em; color: #666; 
-      }
-      .slider-label-left { left: 0; } 
-      .slider-label-right { right: 0; }
-      .allocation-cell { display: flex; align-items: center; }
-      .allocation-cell .form-group { flex-grow: 1; margin: 0; }
-      .trips-value-display { 
-        font-weight: bold; font-size: 1em; margin-left: 12px; 
-        width: 60px; text-align: right; color: #007bff;
-      }
-      .combined-info-box { 
-        margin: 0 0 25px 0; padding: 18px; background-color: #f8f9fa; 
-        border-left: 5px solid #007bff; border-radius: 4px; max-width: 900px; margin-left: auto; margin-right: auto;
-      }
-      .scenario-section { margin-bottom: 15px; }
-      .summary-section h5 { margin-top: 12px; }
-      .total-ok { color: #155724; }
-      .total-error { color: #721c24; }
-    ")),
+    .choice-grid-wrapper label {
+      margin: 0 !important;
+      width: 100% !important;
+      display: block !important;
+    }
     
-    tags$script(HTML(paste0("
-      (function() {
-        const slider_ids = ", jsonlite::toJSON(slider_ids), ";
-        
-        function updateAllDisplays() {
-          let total_trips = 0;
-          let total_cost = 0;
-          
-          for (const id of slider_ids) {
-            const slider = $('#' + id);
-            if (!slider.length) continue;
-            
-            const val = Number(slider.val());
-            total_trips += val;
-            
-            // Cost calculation
-            const row = slider.closest('tr');
-            let cost = 0;
-            if (row.data('dynamic-cost') === true) {
-              const cost_text = $('#dynamic_cost_display').text();
-              cost = parseFloat(cost_text.replace(/[^0-9.-]+/g, '')) || 0;
-            } else {
-              cost = Number(row.data('cost')) || 0;
-            }
-            
-            // Cost calculation: assume cost is monthly, convert to per-trip basis
-            if (!isNaN(cost) && val > 0) {
-              // Assume monthly cost covers ~40 trips, so cost per trip = monthly_cost/40
-              // Weekly cost = trips_per_week * cost_per_trip * (52/12) to get monthly equivalent
-              total_cost += cost * (val / 40) * (52/12);
-            }
-            
-            slider.closest('.allocation-cell').find('.trips-value-display')
-              .text(val + (val === 1 ? ' trip' : ' trips'));
-          }
-          
-          const summary_span = $('#trips_summary_val');
-          const cost_span = $('#cost_summary_val');
-          
-          summary_span.text(total_trips + (total_trips === 1 ? ' trip' : ' trips'));
-          cost_span.text('£' + total_cost.toFixed(0));
-          
-          // Enable button if reasonable number of trips
-          if (total_trips >= 5 && total_trips <= 50) {
-            summary_span.removeClass('total-error').addClass('total-ok');
-            shinyjs.enable('to_sa_button4');
-          } else {
-            summary_span.removeClass('total-ok').addClass('total-error');
-            shinyjs.disable('to_sa_button4');
-          }
-        }
-        
-        $(document).on('shiny:inputchanged', function(event) {
-          if (slider_ids.includes(event.name) || event.name.startsWith('sa_alt_1_replace')) {
-            setTimeout(updateAllDisplays, 50);
-          }
-        });
-        
-        $(document).on('shiny:value', function(event) {
-          if (event.target.id === 'sa_ui_placeholder4') {
-            setTimeout(updateAllDisplays, 150);
-          }
-        });
-      })();
-    "))),
+    .choice-card-v4 { 
+      display: flex; 
+      flex-direction: column; 
+      text-align: center; 
+      height: 100%; 
+      min-height: 200px;
+      padding: 15px; 
+      border: 2px solid #ddd; 
+      border-radius: 8px; 
+      cursor: pointer; 
+      transition: all 0.2s ease-in-out; 
+    }
+    .choice-card-v4:hover { border-color: #007bff; background-color: #f8f9fa; }
+    .choice-icon { margin-bottom: 10px; color: #495057; }
+    .choice-content h5 { font-size: 1.1em; margin-bottom: 5px; }
+    .choice-content p { color: #6c757d; min-height: 40px; }
+    input[type=radio] { display: none; }
+    input[type=radio]:checked + div.choice-card-v4 { border-width: 3px; border-color: #007bff; box-shadow: 0 0 10px rgba(0,123,255,.5); }
+    .choice-card-v4.keep { border-top: 5px solid #28a745; }
+    .choice-card-v4.give-up { border-top: 5px solid #dc3545; }
+    .summary-box-v4 {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #e3f2fd;
+      border-left: 5px solid #007bff;
+      border-radius: 4px;
+      font-weight: bold;
+      text-align: center;
+    }
+  ")
     
-    # --- COMBINED: Instruction box with scenario and summary info ---
-    div(class = "combined-info-box",
-        tags$h4("In this scenario, how would your household travel in the next 3 years?"),
-        
-        fluidRow(
-          column(width = 6,
-                 div(class = "scenario-section",
-                     h5("Leeds 2030 Scenario:"),
-                     tags$table(class="table table-sm table-borderless", style="margin-bottom: 0;",
-                                tags$tbody(
-                                  tags$tr(tags$td(icon("bus"), strong("Mobility network:")), 
-                                          tags$td("Bus/tram/train in Leeds runs 24/7 all week")),
-                                  tags$tr(tags$td(icon("check-circle"), strong("Car club:")), 
-                                          tags$td("A car-club is organised in your neighbourhood."))
-                                )
-                     )
-                 )
-          ),
-          column(width = 6,
-                 div(class = "summary-section",
-                     h5("Your Travel Summary"),
-                     div("Total Weekly Trips:", tags$span(id="trips_summary_val", "0 trips")),
-                     div(style="margin-top: 8px; font-weight: bold;", "Est. Monthly Cost:", tags$span(id="cost_summary_val", "£0"))
-                 )
-          )
-        )
-    ),
-    
-    # --- Narrower table ---
-    tags$div(style = "overflow-x: auto;",
-             tags$table(class = "table choice-table table-bordered",
-                        tags$thead(tags$tr(
-                          tags$th("Mode Option"), 
-                          tags$th("Access"), 
-                          tags$th("Availability"), 
-                          tags$th("Cost"), 
-                          tags$th("Trips per Week")
-                        )),
-                        tags$tbody(table_rows)
-             )
-    ),
-    
-    tags$div(style = "margin-top: 25px; text-align: center;",
-             actionButton("to_sa_button4", "Continue to Next Section", class = "btn btn-success btn-lg")
+    navigation_ui <- div(
+      style = "margin-top: 30px; display: flex; justify-content: space-between; align-items: center;",
+      if (task_idx > 1) { actionButton("prev_task_button_v4", "Back", class = "btn-default btn-lg") } else { div() },
+      tags$strong(paste0("Decision ", task_idx, " of ", num_tasks)),
+      if (task_idx < num_tasks) { actionButton("next_task_button_v4", "Next", class = "btn-primary btn-lg") } else { actionButton("to_sa_button4", "Finish and Continue", class = "btn-success btn-lg") }
     )
+    
+    tagList(
+      tags$head(tags$style(css_styles_v4)),
+      div(class = "survey-content-wrapper-v4",
+          h3("Household Vehicle Choice"),
+          hr(),
+          h4(paste0("Decision for Vehicle ", task_idx, ": Your ", input[[paste0("car",task_idx,"_body_type")]])),
+          p("The table below compares your current vehicle with a new alternative travel option. Based on this, please select one of the two actions for this specific vehicle."),
+          create_comparison_table_v4(current_vehicle, alternative_mode),
+          
+          div(class = "summary-box-v4",
+              textOutput("choice_summary_v4", inline = TRUE)
+          ),
+          
+          hr(style="margin-top:30px;"),
+          
+          h5("What would you like to do with this vehicle?", style="text-align: center; margin-bottom: 20px;"),
+          
+          div(class = "choice-grid-wrapper",
+              radioButtons(
+                inputId = paste0("choice_v4_task", task_idx),
+                label = NULL,
+                choiceNames = choice_names,
+                choiceValues = choice_values,
+                selected = input[[paste0("choice_v4_task", task_idx)]] %||% character(0),
+                width = "100%"
+              )
+          ),
+          
+          navigation_ui
+      )
     )
   })
+  
   
   # ========= VERSION 3: Menu Builder (REFACTORED) =========
   # ============================================================================== #
@@ -616,5 +488,5 @@ function(input, output, session) {
   # --- V2: Render Outputs ---
   output$cost_summary_val_v2 <- renderText({ compute_estimates_v2()$est_cost }); output$trips_work_summary_v2 <- renderText({ compute_estimates_v2()$work_text }); output$trips_leisure_summary_v2 <- renderText({ compute_estimates_v2()$leisure_text })
   observeEvent(input$finish_v2_button, {})
- 
+  
 }
