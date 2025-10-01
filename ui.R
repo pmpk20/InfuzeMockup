@@ -278,13 +278,13 @@ fluidPage(
     
     
     # =========== Choices: Version 1 ===========
-    tabPanel("Choices: Version 1: Binary format", value = "sa_panel_3", uiOutput("sa_ui_placeholder3")),
+    tabPanel("Choices: Version 1: Old format", value = "sa_panel_3", uiOutput("sa_ui_placeholder3")),
     
     # =========== Choices: Version 2 ===========
-    tabPanel("Choices: Version 2: Old format", value = "sa_panel_4", uiOutput("sa_ui_placeholder4")),
+    tabPanel("Choices: Version 2: Binary Choice", value = "sa_panel_4", uiOutput("sa_ui_placeholder4")),
 
     # =========== Choices: Version 3 ===========
-    tabPanel("Choices: Version 3: Horizontal format", value = "sa_panel_5", uiOutput("sa_ui_placeholder5")),
+    tabPanel("Choices: Version 3: Continuous Choice", value = "sa_panel_5", uiOutput("sa_ui_placeholder5")),
     
     # =========== END ===========
     # tabPanel("Choices: Version 4: Different Menu", value = "sa_panel_6", uiOutput("sa_ui_placeholder6")),
