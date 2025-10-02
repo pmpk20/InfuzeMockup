@@ -80,7 +80,7 @@ function(input, output, session) {
       title = "Your Current Main Travel",
       description = paste("You primarily travel by:", commute_mode),
       attributes = list(
-        "Monthly cost" = if(is.na(total_cost)) "Not provided" else paste0("£", round(total_cost)),
+        "Fixed monthly cost" = if(is.na(total_cost)) "Not provided" else paste0("£", round(total_cost)),
         "Car club: Walk time" = "N/A",
         "Car club: Booking" = "N/A",
         "PT frequency" = switch(profile$pt_quality_perception, 
@@ -102,12 +102,11 @@ function(input, output, session) {
         title = "Shared Mobility Package A",
         description = "Access to shared cars when needed, plus unlimited public transport. No vehicle ownership costs (insurance, depreciation, repairs).",
         attributes = list(
-          "Monthly cost" = "£60", # These would be varied by an experimental design
+          "Fixed monthly cost" = "£60", # These would be varied by an experimental design
           "Car club: Walk time" = "10 mins",
           "Car club: Booking" = "1 day ahead",
-          "PT frequency" = "Every 20 mins",
-          "Trip coverage" = "Daily trips",
-          "Extras" = "Bike hire"
+          "Frequency of public transport" = "Every 20 mins",
+          "Extras" = "Access to discounted Beryl bike hire"
         )
       ),
       package2 = list(
@@ -115,11 +114,10 @@ function(input, output, session) {
         title = "Shared Mobility Package B",
         description = "Access to shared cars when needed, plus unlimited public transport. No vehicle ownership costs (insurance, depreciation, repairs).",
         attributes = list(
-          "Monthly cost" = "£80",
+          "Fixed monthly cost" = "£80",
           "Car club: Walk time" = "5 mins",
           "Car club: Booking" = "Same day",
-          "PT frequency" = "Every 10 mins",
-          "Trip coverage" = "Most trips",
+          "Frequency of public transport" = "Every 10 mins",
           "Extras" = "Taxi credit (£20/mo)"
         )
       ),
@@ -128,11 +126,10 @@ function(input, output, session) {
         title = "Shared Mobility Package C",
         description = "Access to shared cars when needed, plus unlimited public transport. No vehicle ownership costs (insurance, depreciation, repairs).",
         attributes = list(
-          "Monthly cost" = "£40",
+          "Fixed monthly cost" = "£40",
           "Car club: Walk time" = "15 mins",
           "Car club: Booking" = "2 days ahead",
-          "PT frequency" = "Every 30 mins",
-          "Trip coverage" = "Commuting only",
+          "Frequency of public transport" = "Every 30 mins",
           "Extras" = "None"
         )
       )
@@ -204,11 +201,10 @@ function(input, output, session) {
       description = paste("A", input[[paste0("car", vehicle_index, "_age_year")]], input[[paste0("car", vehicle_index, "_fuel")]], input[[paste0("car", vehicle_index, "_body_type")]],
                           "that is normally parked", tolower(input[[paste0("car", vehicle_index, "_parking")]])),
       attributes = list(
-        "Monthly cost" = if(is.na(cost)) "Not provided" else paste0("£", round(cost)),
+        "Fixed monthly cost" = if(is.na(cost)) "Not provided" else paste0("£", round(cost)),
         "Car club: Walk time" = "N/A",
         "Car club: Booking" = "N/A",
-        "PT frequency" = "N/A",
-        "Trip coverage" = "N/A",
+        "Frequency of public transport" = "N/A",
         "Extras" = "N/A"
       )
     )
@@ -373,7 +369,7 @@ function(input, output, session) {
                  ),
                  tags$tbody(
                    tags$tr(
-                     tags$td(class="attr-label", "Summary"),
+                     tags$td(class="attr-label", "Description of your travel options:"),
                      tags$td(em(current$description)),
                      tags$td(em(package$description))
                    ),
@@ -397,7 +393,7 @@ function(input, output, session) {
           h3(page_title),
           hr(),
           div(class="reconsideration-banner",
-              h5("Time to Reconsider Your Options"),
+              h5("Please consider you would travel"),
               p("Let's imagine you are reviewing your household's transport for the next few years. The options below present different paths you could take.", style="margin:0;")
           ),
           page_subtitle,
@@ -411,13 +407,13 @@ function(input, output, session) {
                   create_choice_card_v3(
                     current_side$title, 
                     current_side$description, 
-                    current_side$attributes[["Monthly cost"]], 
+                    current_side$attributes[["Fixed monthly cost"]], 
                     "current"
                   ),
                   create_choice_card_v3(
                     package_side$title, 
                     package_side$description, 
-                    package_side$attributes[["Monthly cost"]], 
+                    package_side$attributes[["Fixed monthly cost"]], 
                     "package"
                   )
                 ),
@@ -693,7 +689,7 @@ function(input, output, session) {
       )
       
       banner_ui <- div(class="reconsideration-banner",
-                       h5("Time to Reconsider Your Options"),
+                       h5("Please consider you would travel"),
                        p("Let's imagine you are reviewing your household's transport for the next few years. The options below present different paths you could take for your vehicle.", style="margin:0;")
       )
       

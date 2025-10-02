@@ -71,9 +71,8 @@ fluidPage(
       
       # --- REVISED: Introduction ---
       div(class = "welcome-text",
-          p("Welcome to the INFUZE survey, a research project by the University of Leeds.", style = "font-size: 1.2em;"),
-          p("Your views are vital for understanding how new transport options could work for the people of Leeds. 
-            By taking part, you will help policymakers make better, more informed decisions about our city's transport future.", style = "max-width: 700px; margin: auto;")
+          p("Welcome to the INFUZE draft survey", style = "font-size: 1.2em;"),
+          p("This is a mockup that stores no data. All we are doing here is testing out what the SP tasks could look like.", style = "max-width: 700px; margin: auto;")
       ),
       
       # --- NEW: Key Information Box ---
@@ -119,6 +118,9 @@ fluidPage(
       value = "Step_1A_Screeners",
       h3("About You"),
       p("These questions help us understand how travel choices differ between different groups of people. All responses are anonymous."),
+      div(class = "ethics-note",
+          p("This is just a few of the questions we will be asking. Milad is working on social+psychological factors as well.")
+      ),
       hr(),
       
       selectInput("gender", "How would you describe your gender?", width = "50%",
